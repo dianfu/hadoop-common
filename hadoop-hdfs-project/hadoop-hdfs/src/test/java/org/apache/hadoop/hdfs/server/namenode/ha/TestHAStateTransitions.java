@@ -54,6 +54,7 @@ import org.apache.hadoop.hdfs.server.namenode.EditLogFileOutputStream;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
 import org.apache.hadoop.hdfs.server.namenode.NameNodeAdapter;
 import org.apache.hadoop.hdfs.server.namenode.NameNodeLayoutVersion;
+import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorUtil;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.security.UserGroupInformation;
@@ -580,9 +581,10 @@ public class TestHAStateTransitions {
       Configuration conf = new HdfsConfiguration();
       HATestUtil.setFailoverConfigurations(cluster, conf);
       
+      String regionId = MirrorUtil.getRegionId(conf);
       List<ClientProtocol> namenodes =
           HAUtil.getProxiesForAllNameNodesInNameservice(conf,
-              HATestUtil.getLogicalHostname(cluster));
+              HATestUtil.getLogicalHostname(cluster), regionId);
       
       assertEquals(2, namenodes.size());
       

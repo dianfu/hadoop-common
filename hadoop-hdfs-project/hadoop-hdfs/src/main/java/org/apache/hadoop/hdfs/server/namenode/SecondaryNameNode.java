@@ -59,6 +59,7 @@ import org.apache.hadoop.hdfs.server.namenode.FileJournalManager.EditLogFile;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeDirType;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeFile;
 import org.apache.hadoop.hdfs.server.namenode.NNStorageRetentionManager.StoragePurger;
+import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorUtil;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocol;
 import org.apache.hadoop.hdfs.server.protocol.RemoteEditLog;
 import org.apache.hadoop.hdfs.server.protocol.RemoteEditLogManifest;
@@ -183,12 +184,13 @@ public class SecondaryNameNode implements Runnable,
       CommandLineOpts commandLineOpts) throws IOException {
     try {
       String nsId = DFSUtil.getSecondaryNameServiceId(conf);
-      if (HAUtil.isHAEnabled(conf, nsId)) {
+      String regionId = MirrorUtil.getRegionId(conf);
+      if (HAUtil.isHAEnabled(conf, nsId, regionId)) {
         throw new IOException(
             "Cannot use SecondaryNameNode in an HA cluster." +
             " The Standby Namenode will perform checkpointing.");
       }
-      NameNode.initializeGenericKeys(conf, nsId, null);
+      NameNode.initializeGenericKeys(conf, nsId, null, regionId);
       initialize(conf, commandLineOpts);
     } catch (IOException e) {
       shutdown();

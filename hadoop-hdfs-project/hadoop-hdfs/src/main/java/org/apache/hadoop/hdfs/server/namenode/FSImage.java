@@ -55,6 +55,7 @@ import org.apache.hadoop.hdfs.server.common.Util;
 import org.apache.hadoop.hdfs.server.namenode.FSImageStorageInspector.FSImageFile;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeDirType;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeFile;
+import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorUtil;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.hdfs.server.namenode.startupprogress.Phase;
 import org.apache.hadoop.hdfs.server.namenode.startupprogress.StartupProgress;
@@ -690,7 +691,8 @@ public class FSImage implements Closeable {
     // purge all the checkpoints after the marker
     archivalManager.purgeCheckpoinsAfter(NameNodeFile.IMAGE, ckptId);
     String nameserviceId = DFSUtil.getNamenodeNameServiceId(conf);
-    if (HAUtil.isHAEnabled(conf, nameserviceId)) {
+    String regionId = MirrorUtil.getRegionId(conf);
+    if (HAUtil.isHAEnabled(conf, nameserviceId, regionId)) {
       // close the editlog since it is currently open for write
       this.editLog.close();
       // reopen the editlog for read
@@ -731,11 +733,12 @@ public class FSImage implements Closeable {
     Preconditions.checkState(getNamespaceID() != 0,
         "Must know namespace ID before initting edit log");
     String nameserviceId = DFSUtil.getNamenodeNameServiceId(conf);
-    if (!HAUtil.isHAEnabled(conf, nameserviceId)) {
+    String regionId = MirrorUtil.getRegionId(conf);
+    if (!HAUtil.isHAEnabled(conf, nameserviceId, regionId)) {
       // If this NN is not HA
       editLog.initJournalsForWrite();
       editLog.recoverUnclosedStreams();
-    } else if (HAUtil.isHAEnabled(conf, nameserviceId)
+    } else if (HAUtil.isHAEnabled(conf, nameserviceId, regionId)
         && (startOpt == StartupOption.UPGRADE
             || RollingUpgradeStartupOption.ROLLBACK.matches(startOpt))) {
       // This NN is HA, but we're doing an upgrade or a rollback of rolling

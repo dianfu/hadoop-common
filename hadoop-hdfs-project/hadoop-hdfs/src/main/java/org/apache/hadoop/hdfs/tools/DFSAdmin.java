@@ -60,6 +60,7 @@ import org.apache.hadoop.hdfs.protocol.RollingUpgradeInfo;
 import org.apache.hadoop.hdfs.protocol.SnapshotException;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
 import org.apache.hadoop.hdfs.server.namenode.TransferFsImage;
+import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorUtil;
 import org.apache.hadoop.ipc.RPC;
 import org.apache.hadoop.ipc.RemoteException;
 import org.apache.hadoop.net.NetUtils;
@@ -918,8 +919,9 @@ public class DFSAdmin extends FsShell {
       // In the case of HA and logical URI, run finalizeUpgrade for all
       // NNs in this nameservice.
       String nsId = dfsUri.getHost();
+      String regionId = MirrorUtil.getRegionId(dfsConf);
       List<ClientProtocol> namenodes =
-          HAUtil.getProxiesForAllNameNodesInNameservice(dfsConf, nsId);
+          HAUtil.getProxiesForAllNameNodesInNameservice(dfsConf, nsId, regionId);
       if (!HAUtil.isAtLeastOneActive(namenodes)) {
         throw new IOException("Cannot finalize with no NameNode active");
       }

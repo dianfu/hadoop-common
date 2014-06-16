@@ -31,6 +31,7 @@ import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.DFSUtil;
+import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorUtil;
 import org.apache.hadoop.security.UserGroupInformation;
 
 import com.google.common.base.Joiner;
@@ -152,21 +153,23 @@ class BlockPoolManager {
     LOG.info("Refresh request received for nameservices: "
         + conf.get(DFSConfigKeys.DFS_NAMESERVICES));
     
-    Map<String, Map<String, InetSocketAddress>> newAddressMap = 
+    Map<String, Map<String, Map<String, InetSocketAddress>>> newAddressMap = 
       DFSUtil.getNNServiceRpcAddresses(conf);
     
     synchronized (refreshNamenodesLock) {
-      doRefreshNamenodes(newAddressMap);
+      doRefreshNamenodes(newAddressMap, conf);
     }
   }
   
   private void doRefreshNamenodes(
-      Map<String, Map<String, InetSocketAddress>> addrMap) throws IOException {
+      Map<String, Map<String, Map<String, InetSocketAddress>>> addrMap, Configuration conf)
+          throws IOException {
     assert Thread.holdsLock(refreshNamenodesLock);
 
     Set<String> toRefresh = Sets.newLinkedHashSet();
     Set<String> toAdd = Sets.newLinkedHashSet();
     Set<String> toRemove;
+    String currentRegionId = MirrorUtil.getRegionId(conf);
     
     synchronized (this) {
       // Step 1. For each of the new nameservices, figure out whether
@@ -199,7 +202,7 @@ class BlockPoolManager {
       
         for (String nsToAdd : toAdd) {
           ArrayList<InetSocketAddress> addrs =
-            Lists.newArrayList(addrMap.get(nsToAdd).values());
+            Lists.newArrayList(addrMap.get(nsToAdd).get(currentRegionId).values());
           BPOfferService bpos = createBPOS(addrs);
           bpByNameserviceId.put(nsToAdd, bpos);
           offerServices.add(bpos);
@@ -231,7 +234,7 @@ class BlockPoolManager {
       for (String nsToRefresh : toRefresh) {
         BPOfferService bpos = bpByNameserviceId.get(nsToRefresh);
         ArrayList<InetSocketAddress> addrs =
-          Lists.newArrayList(addrMap.get(nsToRefresh).values());
+          Lists.newArrayList(addrMap.get(nsToRefresh).get(currentRegionId).values());
         bpos.refreshNNList(addrs);
       }
     }

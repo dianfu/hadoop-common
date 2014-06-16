@@ -243,17 +243,17 @@ public class TestDFSUtil {
     conf.set(DFSUtil.addKeySuffixes(DFS_NAMENODE_RPC_ADDRESS_KEY, "nn2"),
         NN2_ADDRESS);
 
-    Map<String, Map<String, InetSocketAddress>> nnMap = DFSUtil
+    Map<String, Map<String, Map<String, InetSocketAddress>>> nnMap = DFSUtil
         .getNNServiceRpcAddresses(conf);
     assertEquals(2, nnMap.size());
     
-    Map<String, InetSocketAddress> nn1Map = nnMap.get("nn1");
+    Map<String, InetSocketAddress> nn1Map = nnMap.get("nn1").get(null);
     assertEquals(1, nn1Map.size());
     InetSocketAddress addr = nn1Map.get(null);
     assertEquals("localhost", addr.getHostName());
     assertEquals(9000, addr.getPort());
     
-    Map<String, InetSocketAddress> nn2Map = nnMap.get("nn2");
+    Map<String, InetSocketAddress> nn2Map = nnMap.get("nn2").get(null);
     assertEquals(1, nn2Map.size());
     addr = nn2Map.get(null);
     assertEquals("localhost", addr.getHostName());
@@ -265,8 +265,8 @@ public class TestDFSUtil {
     checkNameServiceId(conf, NN3_ADDRESS, null);
 
     // HA is not enabled in a purely federated config
-    assertFalse(HAUtil.isHAEnabled(conf, "nn1"));
-    assertFalse(HAUtil.isHAEnabled(conf, "nn2"));
+    assertFalse(HAUtil.isHAEnabled(conf, "nn1", null));
+    assertFalse(HAUtil.isHAEnabled(conf, "nn2", null));
   }
 
   public void checkNameServiceId(Configuration conf, String addr,
@@ -285,11 +285,11 @@ public class TestDFSUtil {
     conf.set(FS_DEFAULT_NAME_KEY, hdfs_default);
     // If DFS_FEDERATION_NAMESERVICES is not set, verify that
     // default namenode address is returned.
-    Map<String, Map<String, InetSocketAddress>> addrMap =
+    Map<String, Map<String, Map<String, InetSocketAddress>>> addrMap =
       DFSUtil.getNNServiceRpcAddresses(conf);
     assertEquals(1, addrMap.size());
     
-    Map<String, InetSocketAddress> defaultNsMap = addrMap.get(null);
+    Map<String, InetSocketAddress> defaultNsMap = addrMap.get(null).get(null);
     assertEquals(1, defaultNsMap.size());
     
     assertEquals(9999, defaultNsMap.get(null).getPort());
@@ -314,7 +314,7 @@ public class TestDFSUtil {
     }
 
     // Initialize generic keys from specific keys
-    NameNode.initializeGenericKeys(conf, nsId, null);
+    NameNode.initializeGenericKeys(conf, nsId, null, null);
 
     // Retrieve the keys without nameserviceId and Ensure generic keys are set
     // to the correct value
@@ -344,7 +344,7 @@ public class TestDFSUtil {
     }
 
     // Initialize generic keys from specific keys
-    NameNode.initializeGenericKeys(conf, nsId, nnId);
+    NameNode.initializeGenericKeys(conf, nsId, nnId, null);
 
     // Retrieve the keys without nameserviceId and Ensure generic keys are set
     // to the correct value
@@ -364,11 +364,12 @@ public class TestDFSUtil {
     final HdfsConfiguration conf = new HdfsConfiguration();
     String nsId = null;
     String nnId = null;
+    String regionId = null;
     
     conf.set(DFS_NAMENODE_RPC_ADDRESS_KEY, "localhost:1234");
 
     assertFalse("hdfs://localhost:1234".equals(conf.get(FS_DEFAULT_NAME_KEY)));
-    NameNode.initializeGenericKeys(conf, nsId, nnId);
+    NameNode.initializeGenericKeys(conf, nsId, nnId, regionId);
     assertEquals("hdfs://localhost:1234", conf.get(FS_DEFAULT_NAME_KEY));
   }
 
@@ -386,22 +387,22 @@ public class TestDFSUtil {
 
     // A namenode in another nameservice should get the global default.
     Configuration newConf = new Configuration(conf);
-    NameNode.initializeGenericKeys(newConf, "ns2", "nn1");
+    NameNode.initializeGenericKeys(newConf, "ns2", "nn1", null);
     assertEquals("global-default", newConf.get(key));
     
     // A namenode in another non-HA nameservice should get global default.
     newConf = new Configuration(conf);
-    NameNode.initializeGenericKeys(newConf, "ns2", null);
+    NameNode.initializeGenericKeys(newConf, "ns2", null, null);
     assertEquals("global-default", newConf.get(key));    
     
     // A namenode in the same nameservice should get the ns setting
     newConf = new Configuration(conf);
-    NameNode.initializeGenericKeys(newConf, "ns1", "nn2");
+    NameNode.initializeGenericKeys(newConf, "ns1", "nn2", null);
     assertEquals("ns1-override", newConf.get(key));    
 
     // The nn with the nn-specific setting should get its own override
     newConf = new Configuration(conf);
-    NameNode.initializeGenericKeys(newConf, "ns1", "nn1");
+    NameNode.initializeGenericKeys(newConf, "ns1", "nn1", null);
     assertEquals("nn1-override", newConf.get(key));    
   }
   
@@ -415,7 +416,7 @@ public class TestDFSUtil {
   public void testEmptyConf() {
     HdfsConfiguration conf = new HdfsConfiguration(false);
     try {
-      Map<String, Map<String, InetSocketAddress>> map =
+      Map<String, Map<String, Map<String, InetSocketAddress>>> map =
           DFSUtil.getNNServiceRpcAddresses(conf);
       fail("Expected IOException is not thrown, result was: " +
           DFSUtil.addressMapToString(map));
@@ -424,7 +425,7 @@ public class TestDFSUtil {
     }
 
     try {
-      Map<String, Map<String, InetSocketAddress>> map =
+      Map<String, Map<String, Map<String, InetSocketAddress>>> map =
         DFSUtil.getBackupNodeAddresses(conf);
       fail("Expected IOException is not thrown, result was: " +
           DFSUtil.addressMapToString(map));
@@ -433,7 +434,7 @@ public class TestDFSUtil {
     }
 
     try {
-      Map<String, Map<String, InetSocketAddress>> map =
+      Map<String, Map<String, Map<String, InetSocketAddress>>> map =
         DFSUtil.getSecondaryNameNodeAddresses(conf);
       fail("Expected IOException is not thrown, result was: " +
           DFSUtil.addressMapToString(map));
@@ -490,28 +491,28 @@ public class TestDFSUtil {
         DFS_NAMENODE_RPC_ADDRESS_KEY, "ns2", "ns2-nn2"),
         NS2_NN2_HOST);
     
-    Map<String, Map<String, InetSocketAddress>> map =
+    Map<String, Map<String, Map<String, InetSocketAddress>>> map =
       DFSUtil.getHaNnRpcAddresses(conf);
 
-    assertTrue(HAUtil.isHAEnabled(conf, "ns1"));
-    assertTrue(HAUtil.isHAEnabled(conf, "ns2"));
-    assertFalse(HAUtil.isHAEnabled(conf, "ns3"));
+    assertTrue(HAUtil.isHAEnabled(conf, "ns1", null));
+    assertTrue(HAUtil.isHAEnabled(conf, "ns2", null));
+    assertFalse(HAUtil.isHAEnabled(conf, "ns3", null));
     
-    assertEquals(NS1_NN1_HOST, map.get("ns1").get("ns1-nn1").toString());
-    assertEquals(NS1_NN2_HOST, map.get("ns1").get("ns1-nn2").toString());
-    assertEquals(NS2_NN1_HOST, map.get("ns2").get("ns2-nn1").toString());
-    assertEquals(NS2_NN2_HOST, map.get("ns2").get("ns2-nn2").toString());
+    assertEquals(NS1_NN1_HOST, map.get("ns1").get(null).get("ns1-nn1").toString());
+    assertEquals(NS1_NN2_HOST, map.get("ns1").get(null).get("ns1-nn2").toString());
+    assertEquals(NS2_NN1_HOST, map.get("ns2").get(null).get("ns2-nn1").toString());
+    assertEquals(NS2_NN2_HOST, map.get("ns2").get(null).get("ns2-nn2").toString());
     
     assertEquals(NS1_NN1_HOST, 
-        DFSUtil.getNamenodeServiceAddr(conf, "ns1", "ns1-nn1"));
+        DFSUtil.getNamenodeServiceAddr(conf, "ns1", "ns1-nn1", null));
     assertEquals(NS1_NN2_HOST, 
-        DFSUtil.getNamenodeServiceAddr(conf, "ns1", "ns1-nn2"));
+        DFSUtil.getNamenodeServiceAddr(conf, "ns1", "ns1-nn2", null));
     assertEquals(NS2_NN1_HOST, 
-        DFSUtil.getNamenodeServiceAddr(conf, "ns2", "ns2-nn1"));
+        DFSUtil.getNamenodeServiceAddr(conf, "ns2", "ns2-nn1", null));
 
     // No nameservice was given and we can't determine which service addr
     // to use as two nameservices could share a namenode ID.
-    assertEquals(null, DFSUtil.getNamenodeServiceAddr(conf, null, "ns1-nn1"));
+    assertEquals(null, DFSUtil.getNamenodeServiceAddr(conf, null, "ns1-nn1", null));
 
     // Ditto for nameservice IDs, if multiple are defined
     assertEquals(null, DFSUtil.getNamenodeNameServiceId(conf));
@@ -542,12 +543,12 @@ public class TestDFSUtil {
         DFS_NAMENODE_RPC_ADDRESS_KEY, "ns1", "nn2"), NS1_NN2_HOST);
 
     // The rpc address is used if no service address is defined
-    assertEquals(NS1_NN1_HOST, DFSUtil.getNamenodeServiceAddr(conf, null, "nn1"));
-    assertEquals(NS1_NN2_HOST, DFSUtil.getNamenodeServiceAddr(conf, null, "nn2"));
+    assertEquals(NS1_NN1_HOST, DFSUtil.getNamenodeServiceAddr(conf, null, "nn1", null));
+    assertEquals(NS1_NN2_HOST, DFSUtil.getNamenodeServiceAddr(conf, null, "nn2", null));
 
     // A nameservice is specified explicitly
-    assertEquals(NS1_NN1_HOST, DFSUtil.getNamenodeServiceAddr(conf, "ns1", "nn1"));
-    assertEquals(null, DFSUtil.getNamenodeServiceAddr(conf, "invalid", "nn1"));
+    assertEquals(NS1_NN1_HOST, DFSUtil.getNamenodeServiceAddr(conf, "ns1", "nn1", null));
+    assertEquals(null, DFSUtil.getNamenodeServiceAddr(conf, "invalid", "nn1", null));
     
     // The service addrs are used when they are defined
     conf.set(DFSUtil.addKeySuffixes(
@@ -555,8 +556,8 @@ public class TestDFSUtil {
     conf.set(DFSUtil.addKeySuffixes(
         DFS_NAMENODE_SERVICE_RPC_ADDRESS_KEY, "ns1", "nn2"), NS1_NN2_HOST_SVC);
 
-    assertEquals(NS1_NN1_HOST_SVC, DFSUtil.getNamenodeServiceAddr(conf, null, "nn1"));
-    assertEquals(NS1_NN2_HOST_SVC, DFSUtil.getNamenodeServiceAddr(conf, null, "nn2"));
+    assertEquals(NS1_NN1_HOST_SVC, DFSUtil.getNamenodeServiceAddr(conf, null, "nn1", null));
+    assertEquals(NS1_NN2_HOST_SVC, DFSUtil.getNamenodeServiceAddr(conf, null, "nn2", null));
 
     // We can determine the nameservice ID, there's only one listed
     assertEquals("ns1", DFSUtil.getNamenodeNameServiceId(conf));
@@ -571,11 +572,11 @@ public class TestDFSUtil {
 
     Configuration conf = createWebHDFSHAConfiguration(LOGICAL_HOST_NAME, NS1_NN1_ADDR, NS1_NN2_ADDR);
 
-    Map<String, Map<String, InetSocketAddress>> map =
+    Map<String, Map<String, Map<String, InetSocketAddress>>> map =
         DFSUtil.getHaNnWebHdfsAddresses(conf, "webhdfs");
 
-    assertEquals(NS1_NN1_ADDR, map.get("ns1").get("nn1").toString());
-    assertEquals(NS1_NN2_ADDR, map.get("ns1").get("nn2").toString());
+    assertEquals(NS1_NN1_ADDR, map.get("ns1").get(null).get("nn1").toString());
+    assertEquals(NS1_NN2_ADDR, map.get("ns1").get(null).get("nn2").toString());
   }
 
   private static Configuration createWebHDFSHAConfiguration(String logicalHostName, String nnaddr1, String nnaddr2) {

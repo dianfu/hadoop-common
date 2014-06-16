@@ -43,6 +43,7 @@ import org.apache.hadoop.hdfs.server.common.Storage;
 import org.apache.hadoop.hdfs.server.common.StorageInfo;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeFile;
 import org.apache.hadoop.hdfs.server.namenode.metrics.NameNodeMetrics;
+import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorUtil;
 import org.apache.hadoop.hdfs.server.protocol.RemoteEditLog;
 import org.apache.hadoop.hdfs.util.DataTransferThrottler;
 import org.apache.hadoop.hdfs.util.MD5FileUtils;
@@ -241,7 +242,8 @@ public class ImageServlet extends HttpServlet {
         conf.get(DFSConfigKeys.DFS_SECONDARY_NAMENODE_KERBEROS_PRINCIPAL_KEY),
         SecondaryNameNode.getHttpAddress(conf).getHostName()));
 
-    if (HAUtil.isHAEnabled(conf, DFSUtil.getNamenodeNameServiceId(conf))) {
+    if (HAUtil.isHAEnabled(conf, DFSUtil.getNamenodeNameServiceId(conf),
+        MirrorUtil.getRegionId(conf))) {
       Configuration otherNnConf = HAUtil.getConfForOtherNode(conf);
       validRequestors.add(SecurityUtil.getServerPrincipal(otherNnConf
           .get(DFSConfigKeys.DFS_NAMENODE_KERBEROS_PRINCIPAL_KEY),

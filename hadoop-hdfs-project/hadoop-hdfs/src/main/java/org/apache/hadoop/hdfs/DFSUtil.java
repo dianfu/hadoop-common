@@ -33,6 +33,7 @@ import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SECONDARY_HTTP_A
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SERVICE_RPC_ADDRESS_KEY;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMESERVICES;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMESERVICE_ID;
+import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_REGION_ID;
 
 import java.io.IOException;
 import java.io.PrintStream;
@@ -80,6 +81,7 @@ import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
 import org.apache.hadoop.hdfs.protocolPB.ClientDatanodeProtocolTranslatorPB;
 import org.apache.hadoop.hdfs.server.namenode.FSDirectory;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
+import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorUtil;
 import org.apache.hadoop.hdfs.web.SWebHdfsFileSystem;
 import org.apache.hadoop.hdfs.web.WebHdfsFileSystem;
 import org.apache.hadoop.http.HttpConfig;
@@ -215,7 +217,7 @@ public class DFSUtil {
   /**
    * Address matcher for matching an address to local address
    */
-  static final AddressMatcher LOCAL_ADDRESS_MATCHER = new AddressMatcher() {
+  public static final AddressMatcher LOCAL_ADDRESS_MATCHER = new AddressMatcher() {
     @Override
     public boolean match(InetSocketAddress s) {
       return NetUtils.isLocalAddress(s.getAddress());
@@ -548,14 +550,16 @@ public class DFSUtil {
    * for each namenode in the in the HA setup.
    * 
    * @param conf configuration
-   * @param nsId the nameservice ID to look at, or null for non-federated 
+   * @param nsId the nameservice ID to look at, or null for non-federated
+   * @param regionId the region ID to look at, or null for non-DR 
    * @return collection of namenode Ids
    */
-  public static Collection<String> getNameNodeIds(Configuration conf, String nsId) {
-    String key = addSuffix(DFS_HA_NAMENODES_KEY_PREFIX, nsId);
+  public static Collection<String> getNameNodeIds(
+      Configuration conf, String nsId, String regionId) {
+    String key = addKeySuffixes(DFS_HA_NAMENODES_KEY_PREFIX, nsId, regionId);
     return conf.getTrimmedStringCollection(key);
   }
-  
+
   /**
    * Given a list of keys in the order of preference, returns a value
    * for the key in the given order from the configuration.
@@ -592,7 +596,7 @@ public class DFSUtil {
   }
   
   /** Concatenate list of suffix strings '.' separated */
-  private static String concatSuffixes(String... suffixes) {
+  public static String concatSuffixes(String... suffixes) {
     if (suffixes == null) {
       return null;
     }
@@ -612,21 +616,29 @@ public class DFSUtil {
    * @param conf configuration
    * @param defaultAddress default address to return in case key is not found.
    * @param keys Set of keys to look for in the order of preference
-   * @return a map(nameserviceId to map(namenodeId to InetSocketAddress))
+   * @return a map(nameserviceId to map(regionId to map(namenodeId to InetSocketAddress)))
+   * @throws IOException
    */
-  private static Map<String, Map<String, InetSocketAddress>>
+  private static Map<String, Map<String, Map<String, InetSocketAddress>>>
     getAddresses(Configuration conf,
       String defaultAddress, String... keys) {
     Collection<String> nameserviceIds = getNameServiceIds(conf);
     
-    // Look for configurations of the form <key>[.<nameserviceId>][.<namenodeId>]
-    // across all of the configured nameservices and namenodes.
-    Map<String, Map<String, InetSocketAddress>> ret = Maps.newLinkedHashMap();
+    // Look for configurations of the form <key>[.<nameserviceId>][.<namenodeId>][.<regionId>]
+    // across all of the configured nameservices, namenodes and regions.
+    Map<String, Map<String, Map<String, InetSocketAddress>>> ret = Maps.newLinkedHashMap();
     for (String nsId : emptyAsSingletonNull(nameserviceIds)) {
-      Map<String, InetSocketAddress> isas =
-        getAddressesForNameserviceId(conf, nsId, defaultAddress, keys);
-      if (!isas.isEmpty()) {
-        ret.put(nsId, isas);
+      Map<String, Map<String, InetSocketAddress>> regionMap = Maps.newLinkedHashMap();
+      Collection<String> regionIds = MirrorUtil.getRegionIds(conf, nsId);
+      for (String rgId : emptyAsSingletonNull(regionIds)) {
+        Map<String, InetSocketAddress> isas =
+          getAddressesForNameserviceId(conf, nsId, rgId, defaultAddress, keys);
+        if (!isas.isEmpty()) {
+          regionMap.put(rgId, isas);
+        }
+      }
+      if (!regionMap.isEmpty()) {
+        ret.put(nsId, regionMap);
       }
     }
     return ret;
@@ -637,22 +649,23 @@ public class DFSUtil {
    * 
    * @param conf Configuration
    * @param nsId the nameservice whose NNs addresses we want.
+   * @param regionId the region whose NNs addresses we want
    * @param defaultValue default address to return in case key is not found.
    * @return A map from nnId -> RPC address of each NN in the nameservice.
    */
   public static Map<String, InetSocketAddress> getRpcAddressesForNameserviceId(
-      Configuration conf, String nsId, String defaultValue) {
-    return getAddressesForNameserviceId(conf, nsId, defaultValue,
+      Configuration conf, String nsId, String regionId, String defaultValue) {
+    return getAddressesForNameserviceId(conf, nsId, regionId, defaultValue,
         DFS_NAMENODE_RPC_ADDRESS_KEY);
   }
 
   private static Map<String, InetSocketAddress> getAddressesForNameserviceId(
-      Configuration conf, String nsId, String defaultValue,
-      String... keys) {
-    Collection<String> nnIds = getNameNodeIds(conf, nsId);
+      Configuration conf, String nsId, String regionId,
+      String defaultValue, String... keys) {
+    Collection<String> nnIds = getNameNodeIds(conf, nsId, regionId);
     Map<String, InetSocketAddress> ret = Maps.newHashMap();
     for (String nnId : emptyAsSingletonNull(nnIds)) {
-      String suffix = concatSuffixes(nsId, nnId);
+      String suffix = concatSuffixes(nsId, nnId, regionId);
       String address = getConfValue(defaultValue, suffix, conf, keys);
       if (address != null) {
         InetSocketAddress isa = NetUtils.createSocketAddr(address);
@@ -673,11 +686,12 @@ public class DFSUtil {
    */
   public static Set<String> getAllNnPrincipals(Configuration conf) throws IOException {
     Set<String> principals = new HashSet<String>();
+    String regionId = MirrorUtil.getRegionId(conf);
     for (String nsId : DFSUtil.getNameServiceIds(conf)) {
-      if (HAUtil.isHAEnabled(conf, nsId)) {
-        for (String nnId : DFSUtil.getNameNodeIds(conf, nsId)) {
+      if (HAUtil.isHAEnabled(conf, nsId, regionId)) {
+        for (String nnId : DFSUtil.getNameNodeIds(conf, nsId, regionId)) {
           Configuration confForNn = new Configuration(conf);
-          NameNode.initializeGenericKeys(confForNn, nsId, nnId);
+          NameNode.initializeGenericKeys(confForNn, nsId, nnId, regionId);
           String principal = SecurityUtil.getServerPrincipal(confForNn
               .get(DFSConfigKeys.DFS_NAMENODE_KERBEROS_PRINCIPAL_KEY),
               NameNode.getAddress(confForNn).getHostName());
@@ -685,7 +699,7 @@ public class DFSUtil {
         }
       } else {
         Configuration confForNn = new Configuration(conf);
-        NameNode.initializeGenericKeys(confForNn, nsId, null);
+        NameNode.initializeGenericKeys(confForNn, nsId, null, regionId);
         String principal = SecurityUtil.getServerPrincipal(confForNn
             .get(DFSConfigKeys.DFS_NAMENODE_KERBEROS_PRINCIPAL_KEY),
             NameNode.getAddress(confForNn).getHostName());
@@ -703,7 +717,7 @@ public class DFSUtil {
    * @param conf configuration
    * @return list of InetSocketAddresses
    */
-  public static Map<String, Map<String, InetSocketAddress>> getHaNnRpcAddresses(
+  public static Map<String, Map<String, Map<String, InetSocketAddress>>> getHaNnRpcAddresses(
       Configuration conf) {
     return getAddresses(conf, null, DFSConfigKeys.DFS_NAMENODE_RPC_ADDRESS_KEY);
   }
@@ -714,7 +728,7 @@ public class DFSUtil {
    *
    * @return list of InetSocketAddresses
    */
-  public static Map<String, Map<String, InetSocketAddress>> getHaNnWebHdfsAddresses(
+  public static Map<String, Map<String, Map<String, InetSocketAddress>>> getHaNnWebHdfsAddresses(
       Configuration conf, String scheme) {
     if (WebHdfsFileSystem.SCHEME.equals(scheme)) {
       return getAddresses(conf, null,
@@ -735,9 +749,9 @@ public class DFSUtil {
    * @return list of InetSocketAddresses
    * @throws IOException on error
    */
-  public static Map<String, Map<String, InetSocketAddress>> getBackupNodeAddresses(
+  public static Map<String, Map<String, Map<String, InetSocketAddress>>> getBackupNodeAddresses(
       Configuration conf) throws IOException {
-    Map<String, Map<String, InetSocketAddress>> addressList = getAddresses(conf,
+    Map<String, Map<String, Map<String, InetSocketAddress>>> addressList = getAddresses(conf,
         null, DFS_NAMENODE_BACKUP_ADDRESS_KEY);
     if (addressList.isEmpty()) {
       throw new IOException("Incorrect configuration: backup node address "
@@ -754,9 +768,9 @@ public class DFSUtil {
    * @return list of InetSocketAddresses
    * @throws IOException on error
    */
-  public static Map<String, Map<String, InetSocketAddress>> getSecondaryNameNodeAddresses(
+  public static Map<String, Map<String, Map<String, InetSocketAddress>>> getSecondaryNameNodeAddresses(
       Configuration conf) throws IOException {
-    Map<String, Map<String, InetSocketAddress>> addressList = getAddresses(conf, null,
+    Map<String, Map<String, Map<String, InetSocketAddress>>> addressList = getAddresses(conf, null,
         DFS_NAMENODE_SECONDARY_HTTP_ADDRESS_KEY);
     if (addressList.isEmpty()) {
       throw new IOException("Incorrect configuration: secondary namenode address "
@@ -778,7 +792,7 @@ public class DFSUtil {
    * @return list of InetSocketAddress
    * @throws IOException on error
    */
-  public static Map<String, Map<String, InetSocketAddress>> getNNServiceRpcAddresses(
+  public static Map<String, Map<String, Map<String, InetSocketAddress>>> getNNServiceRpcAddresses(
       Configuration conf) throws IOException {
     // Use default address as fall back
     String defaultAddress;
@@ -788,7 +802,7 @@ public class DFSUtil {
       defaultAddress = null;
     }
     
-    Map<String, Map<String, InetSocketAddress>> addressList =
+    Map<String, Map<String, Map<String, InetSocketAddress>>> addressList =
       getAddresses(conf, defaultAddress,
         DFS_NAMENODE_SERVICE_RPC_ADDRESS_KEY, DFS_NAMENODE_RPC_ADDRESS_KEY);
     if (addressList.isEmpty()) {
@@ -805,18 +819,22 @@ public class DFSUtil {
    * into a flat list of {@link ConfiguredNNAddress} instances.
    */
   public static List<ConfiguredNNAddress> flattenAddressMap(
-      Map<String, Map<String, InetSocketAddress>> map) {
+      Map<String, Map<String, Map<String, InetSocketAddress>>> map) {
     List<ConfiguredNNAddress> ret = Lists.newArrayList();
     
-    for (Map.Entry<String, Map<String, InetSocketAddress>> entry :
-      map.entrySet()) {
-      String nsId = entry.getKey();
-      Map<String, InetSocketAddress> nnMap = entry.getValue();
-      for (Map.Entry<String, InetSocketAddress> e2 : nnMap.entrySet()) {
-        String nnId = e2.getKey();
-        InetSocketAddress addr = e2.getValue();
-        
-        ret.add(new ConfiguredNNAddress(nsId, nnId, addr));
+    for (Map.Entry<String, Map<String, Map<String, InetSocketAddress>>> nsEntry : map
+        .entrySet()) {
+      String nsId = nsEntry.getKey();
+      for (Map.Entry<String, Map<String, InetSocketAddress>> rgEntry :
+        nsEntry.getValue().entrySet()) {
+        String regionId = rgEntry.getKey();
+        Map<String, InetSocketAddress> nnMap = rgEntry.getValue();
+        for (Map.Entry<String, InetSocketAddress> e2 : nnMap.entrySet()) {
+          String nnId = e2.getKey();
+          InetSocketAddress addr = e2.getValue();
+          
+          ret.add(new ConfiguredNNAddress(nsId, nnId, regionId, addr));
+        }
       }
     }
     return ret;
@@ -828,23 +846,28 @@ public class DFSUtil {
    * should not be considered an interface, and is liable to change.
    */
   public static String addressMapToString(
-      Map<String, Map<String, InetSocketAddress>> map) {
+      Map<String, Map<String, Map<String, InetSocketAddress>>> map) {
     StringBuilder b = new StringBuilder();
-    for (Map.Entry<String, Map<String, InetSocketAddress>> entry :
-         map.entrySet()) {
-      String nsId = entry.getKey();
-      Map<String, InetSocketAddress> nnMap = entry.getValue();
+    for (Map.Entry<String, Map<String, Map<String, InetSocketAddress>>> nsEntry : map.
+        entrySet()) {
+      String nsId = nsEntry.getKey();
       b.append("Nameservice <").append(nsId).append(">:").append("\n");
-      for (Map.Entry<String, InetSocketAddress> e2 : nnMap.entrySet()) {
-        b.append("  NN ID ").append(e2.getKey())
-          .append(" => ").append(e2.getValue()).append("\n");
+      for (Map.Entry<String, Map<String, InetSocketAddress>> rgEntry :
+           nsEntry.getValue().entrySet()) {
+        String rgId = rgEntry.getKey();
+        Map<String, InetSocketAddress> nnMap = rgEntry.getValue();
+        b.append("Region <").append(rgId).append(">:").append("\n");
+        for (Map.Entry<String, InetSocketAddress> e2 : nnMap.entrySet()) {
+          b.append("  NN ID ").append(e2.getKey())
+            .append(" => ").append(e2.getValue()).append("\n");
+        }
       }
     }
     return b.toString();
   }
   
   public static String nnAddressesAsString(Configuration conf) {
-    Map<String, Map<String, InetSocketAddress>> addresses =
+    Map<String, Map<String, Map<String, InetSocketAddress>>> addresses =
       getHaNnRpcAddresses(conf);
     return addressMapToString(addresses);
   }
@@ -855,12 +878,14 @@ public class DFSUtil {
   public static class ConfiguredNNAddress {
     private final String nameserviceId;
     private final String namenodeId;
+    private final String regionId;
     private final InetSocketAddress addr;
 
     private ConfiguredNNAddress(String nameserviceId, String namenodeId,
-        InetSocketAddress addr) {
+        String regionId, InetSocketAddress addr) {
       this.nameserviceId = nameserviceId;
       this.namenodeId = namenodeId;
+      this.regionId = regionId;
       this.addr = addr;
     }
 
@@ -871,6 +896,10 @@ public class DFSUtil {
     public String getNamenodeId() {
       return namenodeId;
     }
+    
+    public String getRegionId() {
+      return regionId;
+    }
 
     public InetSocketAddress getAddress() {
       return addr;
@@ -879,8 +908,21 @@ public class DFSUtil {
     @Override
     public String toString() {
       return "ConfiguredNNAddress[nsId=" + nameserviceId + ";" +
-        "nnId=" + namenodeId + ";addr=" + addr + "]";
+        "regionId=" + regionId + ";nnId=" + namenodeId + ";addr=" + addr + "]";
     }
+  }
+  
+  /**
+   * @return true if arg1 and arg2 are both null or arg1 is equal with arg2
+   */
+  public static boolean stringsEqual(String arg1, String arg2) {
+    if (arg1 == null && arg2 == null) {
+      return true;
+    }
+    if (arg1 != null && arg1.equals(arg2)) {
+      return true;
+    }
+    return false;
   }
   
   /**
@@ -922,27 +964,34 @@ public class DFSUtil {
     // keep track of non-preferred keys here.
     Set<URI> nonPreferredUris = new HashSet<URI>();
     
+    String currentRegionId = MirrorUtil.getRegionId(conf);
     for (String nsId : getNameServiceIds(conf)) {
-      if (HAUtil.isHAEnabled(conf, nsId)) {
-        // Add the logical URI of the nameservice.
-        try {
-          ret.add(new URI(HdfsConstants.HDFS_URI_SCHEME + "://" + nsId));
-        } catch (URISyntaxException ue) {
-          throw new IllegalArgumentException(ue);
+      for (String rgId : emptyAsSingletonNull(MirrorUtil.getRegionIds(conf,
+          nsId))) {
+        if (!stringsEqual(currentRegionId, rgId)) {
+          continue;
         }
-      } else {
-        // Add the URI corresponding to the address of the NN.
-        boolean uriFound = false;
-        for (String key : keys) {
-          String addr = conf.get(concatSuffixes(key, nsId));
-          if (addr != null) {
-            URI uri = createUri(HdfsConstants.HDFS_URI_SCHEME,
-                NetUtils.createSocketAddr(addr));
-            if (!uriFound) {
-              uriFound = true;
-              ret.add(uri);
-            } else {
-              nonPreferredUris.add(uri);
+        if (HAUtil.isHAEnabled(conf, nsId, rgId)) {
+          // Add the logical URI of the nameservice.
+          try {
+            ret.add(new URI(HdfsConstants.HDFS_URI_SCHEME + "://" + nsId));
+          } catch (URISyntaxException ue) {
+            throw new IllegalArgumentException(ue);
+          }
+        } else {
+          // Add the URI corresponding to the address of the NN.
+          boolean uriFound = false;
+          for (String key : keys) {
+            String addr = conf.get(concatSuffixes(key, nsId, rgId));
+            if (addr != null) {
+              URI uri = createUri(HdfsConstants.HDFS_URI_SCHEME,
+                  NetUtils.createSocketAddr(addr));
+              if (!uriFound) {
+                uriFound = true;
+                ret.add(uri);
+              } else {
+                nonPreferredUris.add(uri);
+              }
             }
           }
         }
@@ -1142,13 +1191,27 @@ public class DFSUtil {
    *          The key for which node specific value is looked up
    */
   public static void setGenericConf(Configuration conf,
-      String nameserviceId, String nnId, String... keys) {
+      String nameserviceId, String nnId, String regionId, String... keys) {
     for (String key : keys) {
-      String value = conf.get(addKeySuffixes(key, nameserviceId, nnId));
+      String value = conf.get(addKeySuffixes(key, nameserviceId, nnId,
+          regionId));
       if (value != null) {
         conf.set(key, value);
         continue;
       }
+      
+      value = conf.get(addKeySuffixes(key, nameserviceId, nnId));
+      if (value != null) {
+        conf.set(key, value);
+        continue;
+      }
+      
+      value = conf.get(addKeySuffixes(key, nameserviceId, regionId));
+      if (value != null) {
+        conf.set(key, value);
+        continue;
+      }
+      
       value = conf.get(addKeySuffixes(key, nameserviceId));
       if (value != null) {
         conf.set(key, value);
@@ -1252,18 +1315,21 @@ public class DFSUtil {
       return nsIds.toArray(new String[1])[0];
     }
     String nnId = conf.get(DFS_HA_NAMENODE_ID_KEY);
+    String regionId = conf.get(DFS_REGION_ID);
     
-    return getSuffixIDs(conf, addressKey, null, nnId, LOCAL_ADDRESS_MATCHER)[0];
+    return getSuffixIDs(conf, addressKey, null, nnId, regionId,
+        LOCAL_ADDRESS_MATCHER)[0];
   }
   
   /**
-   * Returns nameservice Id and namenode Id when the local host matches the
-   * configuration parameter {@code addressKey}.<nameservice Id>.<namenode Id>
+   * Returns nameservice Id, namenode Id and region Id when the local host matches the
+   * configuration parameter {@code addressKey}.<nameservice Id>.<namenode Id>.<region Id>
    * 
    * @param conf Configuration
    * @param addressKey configuration key corresponding to the address.
    * @param knownNsId only look at configs for the given nameservice, if not-null
    * @param knownNNId only look at configs for the given namenode, if not null
+   * @param knownRegionId only look at configs for the given region, if not null
    * @param matcher matching criteria for matching the address
    * @return Array with nameservice Id and namenode Id on success. First element
    *         in the array is nameservice Id and second element is namenode Id.
@@ -1271,11 +1337,12 @@ public class DFSUtil {
    *         Id.
    * @throws HadoopIllegalArgumentException on error
    */
-  static String[] getSuffixIDs(final Configuration conf, final String addressKey,
-      String knownNsId, String knownNNId,
+  public static String[] getSuffixIDs(final Configuration conf, final String addressKey,
+      String knownNsId, String knownNNId, String knownRegionId,
       final AddressMatcher matcher) {
     String nameserviceId = null;
     String namenodeId = null;
+    String regionId = null;
     int found = 0;
     
     Collection<String> nsIds = getNameServiceIds(conf);
@@ -1284,31 +1351,39 @@ public class DFSUtil {
         continue;
       }
       
-      Collection<String> nnIds = getNameNodeIds(conf, nsId);
-      for (String nnId : emptyAsSingletonNull(nnIds)) {
-        if (LOG.isTraceEnabled()) {
-          LOG.trace(String.format("addressKey: %s nsId: %s nnId: %s",
-              addressKey, nsId, nnId));
-        }
-        if (knownNNId != null && !knownNNId.equals(nnId)) {
+      Collection<String> regionIds = MirrorUtil.getRegionIds(conf, nsId);
+      for (String rgId : emptyAsSingletonNull(regionIds)) {
+        if (knownRegionId != null && !knownRegionId.equals(rgId)) {
           continue;
         }
-        String key = addKeySuffixes(addressKey, nsId, nnId);
-        String addr = conf.get(key);
-        if (addr == null) {
-          continue;
-        }
-        InetSocketAddress s = null;
-        try {
-          s = NetUtils.createSocketAddr(addr);
-        } catch (Exception e) {
-          LOG.warn("Exception in creating socket address " + addr, e);
-          continue;
-        }
-        if (!s.isUnresolved() && matcher.match(s)) {
-          nameserviceId = nsId;
-          namenodeId = nnId;
-          found++;
+        
+        Collection<String> nnIds = getNameNodeIds(conf, nsId, rgId);
+        for (String nnId : emptyAsSingletonNull(nnIds)) {
+          if (LOG.isTraceEnabled()) {
+            LOG.trace(String.format("addressKey: %s nsId: %s nnId: %s",
+                addressKey, nsId, nnId));
+          }
+          if (knownNNId != null && !knownNNId.equals(nnId)) {
+            continue;
+          }
+          String key = addKeySuffixes(addressKey, nsId, nnId, rgId);
+          String addr = conf.get(key);
+          if (addr == null) {
+            continue;
+          }
+          InetSocketAddress s = null;
+          try {
+            s = NetUtils.createSocketAddr(addr);
+          } catch (Exception e) {
+            LOG.warn("Exception in creating socket address " + addr, e);
+            continue;
+          }
+          if (!s.isUnresolved() && matcher.match(s)) {
+            nameserviceId = nsId;
+            namenodeId = nnId;
+            regionId = rgId;
+            found++;
+          }
         }
       }
     }
@@ -1319,7 +1394,7 @@ public class DFSUtil {
           + DFS_HA_NAMENODE_ID_KEY;
       throw new HadoopIllegalArgumentException(msg);
     }
-    return new String[] { nameserviceId, namenodeId };
+    return new String[] { nameserviceId, namenodeId, regionId };
   }
   
   /**
@@ -1337,7 +1412,7 @@ public class DFSUtil {
     };
     
     for (String key : keys) {
-      String[] ids = getSuffixIDs(conf, key, null, null, matcher);
+      String[] ids = getSuffixIDs(conf, key, null, null, null, matcher);
       if (ids != null && (ids [0] != null || ids[1] != null)) {
         return ids;
       }
@@ -1380,20 +1455,21 @@ public class DFSUtil {
    * @param conf Configuration
    * @param nsId which nameservice nnId is a part of, optional
    * @param nnId the namenode ID to get the service addr for
+   * @param regionId which region nnId is a part of, optional
    * @return the service addr, null if it could not be determined
    */
   public static String getNamenodeServiceAddr(final Configuration conf,
-      String nsId, String nnId) {
+      String nsId, String nnId, String regionId) {
 
     if (nsId == null) {
       nsId = getOnlyNameServiceIdOrNull(conf);
     }
 
     String serviceAddrKey = concatSuffixes(
-        DFSConfigKeys.DFS_NAMENODE_SERVICE_RPC_ADDRESS_KEY, nsId, nnId);
+        DFSConfigKeys.DFS_NAMENODE_SERVICE_RPC_ADDRESS_KEY, nsId, nnId, regionId);
 
     String addrKey = concatSuffixes(
-        DFSConfigKeys.DFS_NAMENODE_RPC_ADDRESS_KEY, nsId, nnId);
+        DFSConfigKeys.DFS_NAMENODE_RPC_ADDRESS_KEY, nsId, nnId, regionId);
 
     String serviceRpcAddr = conf.get(serviceAddrKey);
     if (serviceRpcAddr == null) {

@@ -205,6 +205,7 @@ import org.apache.hadoop.hdfs.server.namenode.ha.HAContext;
 import org.apache.hadoop.hdfs.server.namenode.ha.StandbyCheckpointer;
 import org.apache.hadoop.hdfs.server.namenode.metrics.FSNamesystemMBean;
 import org.apache.hadoop.hdfs.server.namenode.metrics.NameNodeMetrics;
+import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorUtil;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottable;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottable.SnapshotDiffInfo;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
@@ -703,7 +704,8 @@ public class FSNamesystem implements Namesystem, FSClusterStats,
       // block allocation has to be persisted in HA using a shared edits directory
       // so that the standby has up-to-date namespace information
       String nameserviceId = DFSUtil.getNamenodeNameServiceId(conf);
-      this.haEnabled = HAUtil.isHAEnabled(conf, nameserviceId);  
+      String regionId = MirrorUtil.getRegionId(conf);
+      this.haEnabled = HAUtil.isHAEnabled(conf, nameserviceId, regionId);  
       
       // Sanity check the HA-related config.
       if (nameserviceId != null) {

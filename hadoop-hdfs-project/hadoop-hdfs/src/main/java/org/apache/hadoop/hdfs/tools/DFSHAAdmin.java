@@ -30,6 +30,7 @@ import org.apache.hadoop.ha.HAServiceTarget;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
+import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorUtil;
 import org.apache.hadoop.util.ToolRunner;
 
 /**
@@ -84,7 +85,8 @@ public class DFSHAAdmin extends HAAdmin {
   @Override
   protected HAServiceTarget resolveTarget(String nnId) {
     HdfsConfiguration conf = (HdfsConfiguration)getConf();
-    return new NNHAServiceTarget(conf, nameserviceId, nnId);
+    String regionId = MirrorUtil.getRegionId(conf);
+    return new NNHAServiceTarget(conf, nameserviceId, nnId, regionId);
   }
 
   @Override
@@ -125,7 +127,9 @@ public class DFSHAAdmin extends HAAdmin {
    */
   @Override
   protected Collection<String> getTargetIds(String namenodeToActivate) {
-    return DFSUtil.getNameNodeIds(getConf(), (nameserviceId != null)? nameserviceId : DFSUtil.getNamenodeNameServiceId(getConf()));
+    return DFSUtil.getNameNodeIds(getConf(),
+        (nameserviceId != null)? nameserviceId : DFSUtil.getNamenodeNameServiceId(getConf()),
+        MirrorUtil.getRegionId(getConf()));
   }
   
   public static void main(String[] argv) throws Exception {

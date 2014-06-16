@@ -63,6 +63,7 @@ import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifie
 import org.apache.hadoop.hdfs.server.namenode.SafeModeException;
 import org.apache.hadoop.hdfs.web.resources.*;
 import org.apache.hadoop.hdfs.web.resources.HttpOpParam.Op;
+import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorUtil;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.retry.RetryPolicies;
 import org.apache.hadoop.io.retry.RetryPolicy;
@@ -1298,11 +1299,12 @@ public class WebHdfsFileSystem extends FileSystem
       ret.add(addr);
 
     } else {
-      Map<String, Map<String, InetSocketAddress>> addresses = DFSUtil
+      Map<String, Map<String, Map<String, InetSocketAddress>>> addresses = DFSUtil
           .getHaNnWebHdfsAddresses(conf, scheme);
 
+      String regionId = MirrorUtil.getRegionId(conf);
       // Extract the entry corresponding to the logical name.
-      Map<String, InetSocketAddress> addrs = addresses.get(uri.getHost());
+      Map<String, InetSocketAddress> addrs = addresses.get(uri.getHost()).get(regionId);
       for (InetSocketAddress addr : addrs.values()) {
         ret.add(addr);
       }

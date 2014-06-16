@@ -61,7 +61,7 @@ public class ConfiguredFailoverProxyProvider<T> extends
   private int currentProxyIndex = 0;
 
   public ConfiguredFailoverProxyProvider(Configuration conf, URI uri,
-      Class<T> xface) {
+      Class<T> xface, String regionId) {
     Preconditions.checkArgument(
         xface.isAssignableFrom(NamenodeProtocols.class),
         "Interface class %s is not a valid NameNode protocol!");
@@ -85,9 +85,14 @@ public class ConfiguredFailoverProxyProvider<T> extends
     try {
       ugi = UserGroupInformation.getCurrentUser();
       
-      Map<String, Map<String, InetSocketAddress>> map = DFSUtil.getHaNnRpcAddresses(
+      Map<String, Map<String, Map<String, InetSocketAddress>>> map = DFSUtil.getHaNnRpcAddresses(
           conf);
-      Map<String, InetSocketAddress> addressesInNN = map.get(uri.getHost());
+      Map<String, Map<String, InetSocketAddress>> addressesInRegion = map
+          .get(uri.getHost());
+      Map<String, InetSocketAddress> addressesInNN = null;
+      if (addressesInRegion != null) {
+        addressesInNN = addressesInRegion.get(regionId);
+      }
       
       if (addressesInNN == null || addressesInNN.size() == 0) {
         throw new RuntimeException("Could not find any configured addresses " +

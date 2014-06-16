@@ -45,6 +45,7 @@ import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifie
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenSelector;
 import org.apache.hadoop.hdfs.server.namenode.ha.AbstractNNFailoverProxyProvider;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
+import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorUtil;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.ipc.RPC;
 import org.apache.hadoop.ipc.RemoteException;
@@ -72,13 +73,15 @@ public class HAUtil {
    * 
    * @param conf Configuration
    * @param nsId nameservice, or null if no federated NS is configured
+   * @param regionId region id, or null if only one cluster is configured
    * @return true if HA is configured in the configuration; else false.
    */
-  public static boolean isHAEnabled(Configuration conf, String nsId) {
-    Map<String, Map<String, InetSocketAddress>> addresses =
+  public static boolean isHAEnabled(Configuration conf, String nsId, String regionId) {
+   Map<String, Map<String, Map<String, InetSocketAddress>>> addresses =
       DFSUtil.getHaNnRpcAddresses(conf);
-    if (addresses == null) return false;
-    Map<String, InetSocketAddress> nnMap = addresses.get(nsId);
+    if (addresses == null || addresses.get(nsId) == null)
+      return false;
+    Map<String, InetSocketAddress> nnMap = addresses.get(nsId).get(regionId);
     return nnMap != null && nnMap.size() > 1;
   }
 
@@ -112,7 +115,7 @@ public class HAUtil {
     }
     
     String suffixes[] = DFSUtil.getSuffixIDs(conf, DFS_NAMENODE_RPC_ADDRESS_KEY,
-        nsId, null, DFSUtil.LOCAL_ADDRESS_MATCHER);
+        nsId, null, null, DFSUtil.LOCAL_ADDRESS_MATCHER);
     if (suffixes == null) {
       String msg = "Configuration " + DFS_NAMENODE_RPC_ADDRESS_KEY + 
           " must be suffixed with nameservice and namenode ID for HA " +
@@ -144,13 +147,14 @@ public class HAUtil {
    * @param conf the configuration of this node
    * @return the NN ID of the other node in this nameservice
    */
-  public static String getNameNodeIdOfOtherNode(Configuration conf, String nsId) {
+  public static String getNameNodeIdOfOtherNode(
+      Configuration conf, String nsId, String regionId) {
     Preconditions.checkArgument(nsId != null,
         "Could not determine namespace id. Please ensure that this " +
         "machine is one of the machines listed as a NN RPC address, " +
         "or configure " + DFSConfigKeys.DFS_NAMESERVICE_ID);
     
-    Collection<String> nnIds = DFSUtil.getNameNodeIds(conf, nsId);
+    Collection<String> nnIds = DFSUtil.getNameNodeIds(conf, nsId, regionId);
     String myNNId = conf.get(DFSConfigKeys.DFS_HA_NAMENODE_ID_KEY);
     Preconditions.checkArgument(nnIds != null,
         "Could not determine namenode ids in namespace '%s'. " +
@@ -185,11 +189,12 @@ public class HAUtil {
       Configuration myConf) {
     
     String nsId = DFSUtil.getNamenodeNameServiceId(myConf);
-    String otherNn = getNameNodeIdOfOtherNode(myConf, nsId);
+    String regionId = MirrorUtil.getRegionId(myConf);
+    String otherNn = getNameNodeIdOfOtherNode(myConf, nsId, regionId);
     
     // Look up the address of the active NN.
     Configuration confForOtherNode = new Configuration(myConf);
-    NameNode.initializeGenericKeys(confForOtherNode, nsId, otherNn);
+    NameNode.initializeGenericKeys(confForOtherNode, nsId, otherNn, regionId);
     return confForOtherNode;
   }
 
@@ -348,13 +353,14 @@ public class HAUtil {
    * 
    * @param conf configuration
    * @param nsId the nameservice to get all of the proxies for.
+   * @param regionId the region to get all of the proxies for
    * @return a list of RPC proxies for each NN in the nameservice.
    * @throws IOException in the event of error.
    */
   public static List<ClientProtocol> getProxiesForAllNameNodesInNameservice(
-      Configuration conf, String nsId) throws IOException {
+      Configuration conf, String nsId, String regionId) throws IOException {
     Map<String, InetSocketAddress> nnAddresses =
-        DFSUtil.getRpcAddressesForNameserviceId(conf, nsId, null);
+        DFSUtil.getRpcAddressesForNameserviceId(conf, nsId, regionId, null);
     
     List<ClientProtocol> namenodes = new ArrayList<ClientProtocol>();
     for (InetSocketAddress nnAddress : nnAddresses.values()) {

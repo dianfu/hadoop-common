@@ -68,6 +68,7 @@ import org.apache.hadoop.hdfs.server.namenode.NameNode;
 import org.apache.hadoop.hdfs.server.namenode.NameNode.OperationCategory;
 import org.apache.hadoop.hdfs.server.namenode.Namesystem;
 import org.apache.hadoop.hdfs.server.namenode.metrics.NameNodeMetrics;
+import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorUtil;
 import org.apache.hadoop.hdfs.server.protocol.BlockCommand;
 import org.apache.hadoop.hdfs.server.protocol.BlocksWithLocations;
 import org.apache.hadoop.hdfs.server.protocol.BlocksWithLocations.BlockWithLocations;
@@ -379,11 +380,12 @@ public class BlockManager {
         + "=" + encryptionAlgorithm);
     
     String nsId = DFSUtil.getNamenodeNameServiceId(conf);
-    boolean isHaEnabled = HAUtil.isHAEnabled(conf, nsId);
+    String regionId = MirrorUtil.getRegionId(conf);
+    boolean isHaEnabled = HAUtil.isHAEnabled(conf, nsId, regionId);
 
     if (isHaEnabled) {
       String thisNnId = HAUtil.getNameNodeId(conf, nsId);
-      String otherNnId = HAUtil.getNameNodeIdOfOtherNode(conf, nsId);
+      String otherNnId = HAUtil.getNameNodeIdOfOtherNode(conf, nsId, regionId);
       return new BlockTokenSecretManager(updateMin*60*1000L,
           lifetimeMin*60*1000L, thisNnId.compareTo(otherNnId) < 0 ? 0 : 1, null,
           encryptionAlgorithm);

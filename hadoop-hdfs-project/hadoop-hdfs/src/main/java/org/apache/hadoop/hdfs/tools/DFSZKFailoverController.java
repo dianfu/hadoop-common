@@ -37,6 +37,7 @@ import org.apache.hadoop.hdfs.HDFSPolicyProvider;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
 import org.apache.hadoop.hdfs.server.namenode.ha.proto.HAZKInfoProtos.ActiveNodeInfo;
+import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorUtil;
 import org.apache.hadoop.ipc.Server;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.SecurityUtil;
@@ -66,8 +67,9 @@ public class DFSZKFailoverController extends ZKFailoverController {
       throw new RuntimeException("Invalid data in ZK: " +
           StringUtils.byteToHexString(data));
     }
+    String regionId = MirrorUtil.getRegionId(conf);
     NNHAServiceTarget ret = new NNHAServiceTarget(
-        conf, proto.getNameserviceId(), proto.getNamenodeId());
+        conf, proto.getNameserviceId(), proto.getNamenodeId(), regionId);
     InetSocketAddress addressFromProtobuf = new InetSocketAddress(
         proto.getHostname(), proto.getPort());
     
@@ -116,17 +118,18 @@ public class DFSZKFailoverController extends ZKFailoverController {
   public static DFSZKFailoverController create(Configuration conf) {
     Configuration localNNConf = DFSHAAdmin.addSecurityConfiguration(conf);
     String nsId = DFSUtil.getNamenodeNameServiceId(conf);
+    String regionId = MirrorUtil.getRegionId(conf);
 
-    if (!HAUtil.isHAEnabled(localNNConf, nsId)) {
+    if (!HAUtil.isHAEnabled(localNNConf, nsId, regionId)) {
       throw new HadoopIllegalArgumentException(
           "HA is not enabled for this namenode.");
     }
     String nnId = HAUtil.getNameNodeId(localNNConf, nsId);
-    NameNode.initializeGenericKeys(localNNConf, nsId, nnId);
-    DFSUtil.setGenericConf(localNNConf, nsId, nnId, ZKFC_CONF_KEYS);
+    NameNode.initializeGenericKeys(localNNConf, nsId, nnId, regionId);
+    DFSUtil.setGenericConf(localNNConf, nsId, nnId, regionId, ZKFC_CONF_KEYS);
     
     NNHAServiceTarget localTarget = new NNHAServiceTarget(
-        localNNConf, nsId, nnId);
+        localNNConf, nsId, nnId, regionId);
     return new DFSZKFailoverController(localNNConf, localTarget);
   }
 

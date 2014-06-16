@@ -61,7 +61,7 @@ public class TestGetImageServlet {
         "ns1", "nn2"), "hdfs/_HOST@TEST-REALM.COM");
     
     // Initialize this conf object as though we're running on NN1.
-    NameNode.initializeGenericKeys(conf, "ns1", "nn1");
+    NameNode.initializeGenericKeys(conf, "ns1", "nn1", null);
     
     AccessControlList acls = Mockito.mock(AccessControlList.class);
     Mockito.when(acls.isUserAllowed(Mockito.<UserGroupInformation>any())).thenReturn(false);

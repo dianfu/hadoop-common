@@ -53,7 +53,7 @@ public class NNHAServiceTarget extends HAServiceTarget {
   private final boolean autoFailoverEnabled;
   
   public NNHAServiceTarget(Configuration conf,
-      String nsId, String nnId) {
+      String nsId, String nnId, String regionId) {
     Preconditions.checkNotNull(nnId);
     
     if (nsId == null) {
@@ -68,10 +68,10 @@ public class NNHAServiceTarget extends HAServiceTarget {
     // Make a copy of the conf, and override configs based on the
     // target node -- not the node we happen to be running on.
     HdfsConfiguration targetConf = new HdfsConfiguration(conf);
-    NameNode.initializeGenericKeys(targetConf, nsId, nnId);
+    NameNode.initializeGenericKeys(targetConf, nsId, nnId, regionId);
     
     String serviceAddr = 
-      DFSUtil.getNamenodeServiceAddr(targetConf, nsId, nnId);
+      DFSUtil.getNamenodeServiceAddr(targetConf, nsId, nnId, regionId);
     if (serviceAddr == null) {
       throw new IllegalArgumentException(
           "Unable to determine service address for namenode '" + nnId + "'");

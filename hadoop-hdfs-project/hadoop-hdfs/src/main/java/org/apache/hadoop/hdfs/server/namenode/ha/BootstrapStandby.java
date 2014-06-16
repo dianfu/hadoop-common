@@ -46,6 +46,7 @@ import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
 import org.apache.hadoop.hdfs.server.namenode.TransferFsImage;
+import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorUtil;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeFile;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocol;
 import org.apache.hadoop.hdfs.server.protocol.NamespaceInfo;
@@ -264,13 +265,14 @@ public class BootstrapStandby implements Tool, Configurable {
   private void parseConfAndFindOtherNN() throws IOException {
     Configuration conf = getConf();
     nsId = DFSUtil.getNamenodeNameServiceId(conf);
+    String regionId = MirrorUtil.getRegionId(conf);
 
-    if (!HAUtil.isHAEnabled(conf, nsId)) {
+    if (!HAUtil.isHAEnabled(conf, nsId, regionId)) {
       throw new HadoopIllegalArgumentException(
           "HA is not enabled for this namenode.");
     }
     nnId = HAUtil.getNameNodeId(conf, nsId);
-    NameNode.initializeGenericKeys(conf, nsId, nnId);
+    NameNode.initializeGenericKeys(conf, nsId, nnId, regionId);
 
     if (!HAUtil.usesSharedEditsDir(conf)) {
       throw new HadoopIllegalArgumentException(

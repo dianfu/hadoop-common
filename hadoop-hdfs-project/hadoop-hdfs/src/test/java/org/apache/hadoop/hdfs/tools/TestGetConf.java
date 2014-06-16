@@ -23,6 +23,8 @@ import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_RPC_ADDRESS_KEY;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SECONDARY_HTTP_ADDRESS_KEY;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SERVICE_RPC_ADDRESS_KEY;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMESERVICES;
+import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_REGION_ID;
+import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_REGIONS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -62,15 +64,20 @@ public class TestGetConf {
   }
   FileSystem localFileSys; 
   /** Setup federation nameServiceIds in the configuration */
-  private void setupNameServices(HdfsConfiguration conf, int nameServiceIdCount) {
+  private void setupNameServices(HdfsConfiguration conf, String region,
+      int nameServiceIdCount) {
     StringBuilder nsList = new StringBuilder();
     for (int i = 0; i < nameServiceIdCount; i++) {
       if (nsList.length() > 0) {
         nsList.append(",");
       }
-      nsList.append(getNameServiceId(i));
+      String nsID = getNameServiceId(i);
+      nsList.append(nsID);
+      String specificKey = DFSUtil.addKeySuffixes(DFS_REGIONS, nsID);
+      conf.set(specificKey, region);
     }
     conf.set(DFS_NAMESERVICES, nsList.toString());
+    conf.set(DFS_REGION_ID, region);
   }
 
   /** Set a given key with value as address, for all the nameServiceIds.
@@ -81,11 +88,11 @@ public class TestGetConf {
    * @return list of addresses that are set in the configuration
    */
   private String[] setupAddress(HdfsConfiguration conf, String key,
-      int nameServiceIdCount, int portOffset) {
+      String region, int nameServiceIdCount, int portOffset) {
     String[] values = new String[nameServiceIdCount];
     for (int i = 0; i < nameServiceIdCount; i++, portOffset++) {
       String nsID = getNameServiceId(i);
-      String specificKey = DFSUtil.addKeySuffixes(key, nsID);
+      String specificKey = DFSUtil.addKeySuffixes(key, nsID, region);
       values[i] = "nn" + i + ":" + portOffset;
       conf.set(specificKey, values[i]);
     }
@@ -117,7 +124,7 @@ public class TestGetConf {
   /**
    * Using DFSUtil methods get the list of given {@code type} of address
    */
-  private Map<String, Map<String, InetSocketAddress>> getAddressListFromConf(
+  private Map<String, Map<String, Map<String, InetSocketAddress>>> getAddressListFromConf(
       TestType type, HdfsConfiguration conf) throws IOException {
     switch (type) {
     case NAMENODE:
@@ -220,7 +227,7 @@ public class TestGetConf {
   private void verifyAddresses(HdfsConfiguration conf, TestType type,
       boolean checkPort, String... expected) throws Exception {
     // Ensure DFSUtil returned the right set of addresses
-    Map<String, Map<String, InetSocketAddress>> map =
+    Map<String, Map<String, Map<String, InetSocketAddress>>> map =
       getAddressListFromConf(type, conf);
     List<ConfiguredNNAddress> list = DFSUtil.flattenAddressMap(map);
     String[] actual = toStringArray(list);
@@ -317,15 +324,16 @@ public class TestGetConf {
     // Test to ensure namenode, backup and secondary namenode addresses are
     // returned from federation configuration. Returned namenode addresses are
     // based on service RPC address and not regular RPC address
-    setupNameServices(conf, nsCount);
+    String region = "region_test";
+    setupNameServices(conf, region, nsCount);
     String[] nnAddresses = setupAddress(conf,
-        DFS_NAMENODE_SERVICE_RPC_ADDRESS_KEY, nsCount, 1000);
-    setupAddress(conf, DFS_NAMENODE_RPC_ADDRESS_KEY, nsCount, 1500);
+        DFS_NAMENODE_SERVICE_RPC_ADDRESS_KEY, region, nsCount, 1000);
+    setupAddress(conf, DFS_NAMENODE_RPC_ADDRESS_KEY, region, nsCount, 1500);
     setupStaticHostResolution(nsCount);
     String[] backupAddresses = setupAddress(conf,
-        DFS_NAMENODE_BACKUP_ADDRESS_KEY, nsCount, 2000);
+        DFS_NAMENODE_BACKUP_ADDRESS_KEY, region, nsCount, 2000);
     String[] secondaryAddresses = setupAddress(conf,
-        DFS_NAMENODE_SECONDARY_HTTP_ADDRESS_KEY, nsCount, 3000);
+        DFS_NAMENODE_SECONDARY_HTTP_ADDRESS_KEY, region, nsCount, 3000);
     verifyAddresses(conf, TestType.NAMENODE, false, nnAddresses);
     verifyAddresses(conf, TestType.BACKUP, false, backupAddresses);
     verifyAddresses(conf, TestType.SECONDARY, false, secondaryAddresses);
@@ -336,13 +344,13 @@ public class TestGetConf {
     // Returned namenode addresses are based on regular RPC address
     // in the absence of service RPC address.
     conf = new HdfsConfiguration(false);
-    setupNameServices(conf, nsCount);
+    setupNameServices(conf, region, nsCount);
     nnAddresses = setupAddress(conf,
-        DFS_NAMENODE_RPC_ADDRESS_KEY, nsCount, 1000);
+        DFS_NAMENODE_RPC_ADDRESS_KEY, region, nsCount, 1000);
     backupAddresses = setupAddress(conf,
-        DFS_NAMENODE_BACKUP_ADDRESS_KEY, nsCount, 2000);
+        DFS_NAMENODE_BACKUP_ADDRESS_KEY, region, nsCount, 2000);
     secondaryAddresses = setupAddress(conf,
-        DFS_NAMENODE_SECONDARY_HTTP_ADDRESS_KEY, nsCount, 3000);
+        DFS_NAMENODE_SECONDARY_HTTP_ADDRESS_KEY, region, nsCount, 3000);
     verifyAddresses(conf, TestType.NAMENODE, false, nnAddresses);
     verifyAddresses(conf, TestType.BACKUP, false, backupAddresses);
     verifyAddresses(conf, TestType.SECONDARY, false, secondaryAddresses);

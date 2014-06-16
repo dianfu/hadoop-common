@@ -33,6 +33,7 @@ import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.hdfs.DFSUtil.ConfiguredNNAddress;
+import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorUtil;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
@@ -224,8 +225,12 @@ public class GetConf extends Configured implements Tool {
       Configuration config = tool.getConf();
       List<ConfiguredNNAddress> cnnlist = DFSUtil.flattenAddressMap(
           DFSUtil.getNNServiceRpcAddresses(config));
+      String currentRegionId = MirrorUtil.getRegionId(config);
       if (!cnnlist.isEmpty()) {
         for (ConfiguredNNAddress cnn : cnnlist) {
+          if (!DFSUtil.stringsEqual(currentRegionId, cnn.getRegionId())) {
+            continue;
+          }
           InetSocketAddress rpc = cnn.getAddress();
           tool.printOut(rpc.getHostName()+":"+rpc.getPort());
         }
@@ -273,11 +278,15 @@ public class GetConf extends Configured implements Tool {
     out.println(message);
   }
   
-  void printMap(Map<String, Map<String, InetSocketAddress>> map) {
+  void printMap(Map<String, Map<String, Map<String, InetSocketAddress>>> map) {
     StringBuilder buffer = new StringBuilder();
 
+    String currentRegionId = MirrorUtil.getRegionId(getConf());
     List<ConfiguredNNAddress> cnns = DFSUtil.flattenAddressMap(map);
     for (ConfiguredNNAddress cnn : cnns) {
+      if (!DFSUtil.stringsEqual(currentRegionId, cnn.getRegionId())) {
+        continue;
+      }
       InetSocketAddress address = cnn.getAddress();
       if (buffer.length() > 0) {
         buffer.append(" ");

@@ -649,4 +649,9 @@ public class DFSConfigKeys extends CommonConfigurationKeys {
    public static final String DFS_DATANODE_SLOW_IO_WARNING_THRESHOLD_KEY =
      "dfs.datanode.slow.io.warning.threshold.ms";
    public static final long DFS_DATANODE_SLOW_IO_WARNING_THRESHOLD_DEFAULT = 300;
+
+  // Disaster Recovery
+  public static final String DFS_REGION_ID = "dfs.region.id";
+  public static final String DFS_REGIONS = "dfs.regions";
+  public static final String DFS_REGION_PRIMARY = "dfs.region.primary";
 }

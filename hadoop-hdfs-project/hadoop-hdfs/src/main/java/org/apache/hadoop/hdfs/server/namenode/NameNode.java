@@ -45,6 +45,7 @@ import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.RollingUpgradeSt
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.StartupOption;
 import org.apache.hadoop.hdfs.server.namenode.ha.*;
 import org.apache.hadoop.hdfs.server.namenode.metrics.NameNodeMetrics;
+import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorUtil;
 import org.apache.hadoop.hdfs.server.namenode.startupprogress.StartupProgress;
 import org.apache.hadoop.hdfs.server.namenode.startupprogress.StartupProgressMetrics;
 import org.apache.hadoop.hdfs.server.protocol.*;
@@ -739,12 +740,13 @@ public class NameNode implements NameNodeStatusMXBean {
     setClientNamenodeAddress(conf);
     String nsId = getNameServiceId(conf);
     String namenodeId = HAUtil.getNameNodeId(conf, nsId);
-    this.haEnabled = HAUtil.isHAEnabled(conf, nsId);
+    String regionId = MirrorUtil.getRegionId(conf);
+    this.haEnabled = HAUtil.isHAEnabled(conf, nsId, regionId);
     state = createHAState(getStartupOption(conf));
     this.allowStaleStandbyReads = HAUtil.shouldAllowStandbyReads(conf);
     this.haContext = createHAContext();
     try {
-      initializeGenericKeys(conf, nsId, namenodeId);
+      initializeGenericKeys(conf, nsId, namenodeId, regionId);
       initialize(conf);
       try {
         haContext.writeLock();
@@ -886,7 +888,8 @@ public class NameNode implements NameNodeStatusMXBean {
       boolean isInteractive) throws IOException {
     String nsId = DFSUtil.getNamenodeNameServiceId(conf);
     String namenodeId = HAUtil.getNameNodeId(conf, nsId);
-    initializeGenericKeys(conf, nsId, namenodeId);
+    String regionId = MirrorUtil.getRegionId(conf);
+    initializeGenericKeys(conf, nsId, namenodeId, regionId);
     checkAllowFormat(conf);
 
     if (UserGroupInformation.isSecurityEnabled()) {
@@ -984,7 +987,8 @@ public class NameNode implements NameNodeStatusMXBean {
       boolean force, boolean interactive) throws IOException {
     String nsId = DFSUtil.getNamenodeNameServiceId(conf);
     String namenodeId = HAUtil.getNameNodeId(conf, nsId);
-    initializeGenericKeys(conf, nsId, namenodeId);
+    String regionId = MirrorUtil.getRegionId(conf);
+    initializeGenericKeys(conf, nsId, namenodeId, regionId);
     
     if (conf.get(DFSConfigKeys.DFS_NAMENODE_SHARED_EDITS_DIR_KEY) == null) {
       LOG.fatal("No shared edits directory configured for namespace " +
@@ -1125,7 +1129,8 @@ public class NameNode implements NameNodeStatusMXBean {
       boolean isConfirmationNeeded) throws IOException {
     String nsId = DFSUtil.getNamenodeNameServiceId(conf);
     String namenodeId = HAUtil.getNameNodeId(conf, nsId);
-    initializeGenericKeys(conf, nsId, namenodeId);
+    String regionId = MirrorUtil.getRegionId(conf);
+    initializeGenericKeys(conf, nsId, namenodeId, regionId);
 
     FSNamesystem nsys = new FSNamesystem(conf, new FSImage(conf));
     System.err.print(
@@ -1285,7 +1290,8 @@ public class NameNode implements NameNodeStatusMXBean {
       throws IOException {
     String nsId = DFSUtil.getNamenodeNameServiceId(conf);
     String namenodeId = HAUtil.getNameNodeId(conf, nsId);
-    initializeGenericKeys(conf, nsId, namenodeId);
+    String regionId = MirrorUtil.getRegionId(conf);
+    initializeGenericKeys(conf, nsId, namenodeId, regionId);
     if (startOpt.getForce() < MetaRecoveryContext.FORCE_ALL) {
       if (!confirmPrompt("You have selected Metadata Recovery mode.  " +
           "This mode is intended to recover lost metadata on a corrupt " +
@@ -1404,22 +1410,27 @@ public class NameNode implements NameNodeStatusMXBean {
    *          to the key passed. Note the conf object is modified
    * @param nameserviceId name service Id (to distinguish federated NNs)
    * @param namenodeId the namenode ID (to distinguish HA NNs)
+   * @param regionId the region Id (to distinguish multiple region NNs)
    * @see DFSUtil#setGenericConf(Configuration, String, String, String...)
    */
   public static void initializeGenericKeys(Configuration conf,
-      String nameserviceId, String namenodeId) {
+      String nameserviceId, String namenodeId, String regionId) {
     if ((nameserviceId != null && !nameserviceId.isEmpty()) || 
-        (namenodeId != null && !namenodeId.isEmpty())) {
+        (namenodeId != null && !namenodeId.isEmpty()) ||
+        (regionId != null && !regionId.isEmpty())) {
       if (nameserviceId != null) {
         conf.set(DFS_NAMESERVICE_ID, nameserviceId);
       }
       if (namenodeId != null) {
         conf.set(DFS_HA_NAMENODE_ID_KEY, namenodeId);
       }
+      if (regionId != null) {
+        conf.set(DFS_REGION_ID, regionId);
+      }
       
-      DFSUtil.setGenericConf(conf, nameserviceId, namenodeId,
+      DFSUtil.setGenericConf(conf, nameserviceId, namenodeId, regionId,
           NAMENODE_SPECIFIC_KEYS);
-      DFSUtil.setGenericConf(conf, nameserviceId, null,
+      DFSUtil.setGenericConf(conf, nameserviceId, null, regionId,
           NAMESERVICE_SPECIFIC_KEYS);
     }
     

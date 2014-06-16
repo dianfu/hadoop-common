@@ -81,7 +81,7 @@ public class TestHAConfiguration {
     conf.set(DFSConfigKeys.DFS_NAMESERVICE_ID, "ns1");
 
     // This is done by the NN before the StandbyCheckpointer is created
-    NameNode.initializeGenericKeys(conf, "ns1", "nn1");
+    NameNode.initializeGenericKeys(conf, "ns1", "nn1", null);
 
     // Since we didn't configure the HTTP address, and the default is
     // 0.0.0.0, it should substitute the address from the RPC configuration
