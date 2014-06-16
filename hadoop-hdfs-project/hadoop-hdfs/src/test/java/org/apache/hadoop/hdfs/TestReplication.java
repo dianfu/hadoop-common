@@ -64,7 +64,7 @@ public class TestReplication {
     throws IOException {
     Configuration conf = fileSys.getConf();
     ClientProtocol namenode = NameNodeProxies.createProxy(conf, fileSys.getUri(),
-        ClientProtocol.class).getProxy();
+        ClientProtocol.class, null).getProxy();
       
     waitForBlockReplication(name.toString(), namenode, 
                             Math.min(numDatanodes, repl), -1);

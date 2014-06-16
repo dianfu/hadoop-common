@@ -32,6 +32,7 @@ import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.hdfs.NameNodeProxies;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
+import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorUtil;
 import org.apache.hadoop.tools.GetGroupsBase;
 import org.apache.hadoop.tools.GetUserMappingsProtocol;
 import org.apache.hadoop.util.ToolRunner;
@@ -84,8 +85,9 @@ public class GetGroups extends GetGroupsBase {
   
   @Override
   protected GetUserMappingsProtocol getUgmProtocol() throws IOException {
+    String regionId = MirrorUtil.getRegionId(getConf());
     return NameNodeProxies.createProxy(getConf(), FileSystem.getDefaultUri(getConf()),
-        GetUserMappingsProtocol.class).getProxy();
+        GetUserMappingsProtocol.class, regionId).getProxy();
   }
 
   public static void main(String[] argv) throws Exception {

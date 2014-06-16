@@ -81,7 +81,7 @@ public class TestBalancerWithHANameNodes {
       cluster.transitionToActive(1);
       Thread.sleep(500);
       client = NameNodeProxies.createProxy(conf, FileSystem.getDefaultUri(conf),
-          ClientProtocol.class).getProxy();
+          ClientProtocol.class, null).getProxy();
       long totalCapacity = TestBalancer.sum(capacities);
       // fill up the cluster to be 30% full
       long totalUsedSpace = totalCapacity * 3 / 10;

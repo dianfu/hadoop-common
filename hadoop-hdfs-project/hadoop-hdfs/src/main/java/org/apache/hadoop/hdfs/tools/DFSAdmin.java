@@ -1018,9 +1018,10 @@ public class DFSAdmin extends FsShell {
         conf.get(DFSConfigKeys.DFS_NAMENODE_KERBEROS_PRINCIPAL_KEY, ""));
 
     // Create the client
+    String regionId = MirrorUtil.getRegionId(conf);
     RefreshAuthorizationPolicyProtocol refreshProtocol =
         NameNodeProxies.createProxy(conf, FileSystem.getDefaultUri(conf),
-            RefreshAuthorizationPolicyProtocol.class).getProxy();
+            RefreshAuthorizationPolicyProtocol.class, regionId).getProxy();
     
     // Refresh the authorization policy in-effect
     refreshProtocol.refreshServiceAcl();
@@ -1044,9 +1045,10 @@ public class DFSAdmin extends FsShell {
         conf.get(DFSConfigKeys.DFS_NAMENODE_KERBEROS_PRINCIPAL_KEY, ""));
  
     // Create the client
+    String regionId = MirrorUtil.getRegionId(conf);
     RefreshUserMappingsProtocol refreshProtocol =
       NameNodeProxies.createProxy(conf, FileSystem.getDefaultUri(conf),
-          RefreshUserMappingsProtocol.class).getProxy();
+          RefreshUserMappingsProtocol.class, regionId).getProxy();
 
     // Refresh the user-to-groups mappings
     refreshProtocol.refreshUserToGroupsMappings();
@@ -1071,9 +1073,10 @@ public class DFSAdmin extends FsShell {
         conf.get(DFSConfigKeys.DFS_NAMENODE_KERBEROS_PRINCIPAL_KEY, ""));
 
     // Create the client
+    String regionId = MirrorUtil.getRegionId(conf);
     RefreshUserMappingsProtocol refreshProtocol =
       NameNodeProxies.createProxy(conf, FileSystem.getDefaultUri(conf),
-          RefreshUserMappingsProtocol.class).getProxy();
+          RefreshUserMappingsProtocol.class, regionId).getProxy();
 
     // Refresh the user-to-groups mappings
     refreshProtocol.refreshSuperUserGroupsConfiguration();
@@ -1092,9 +1095,10 @@ public class DFSAdmin extends FsShell {
         conf.get(DFSConfigKeys.DFS_NAMENODE_KERBEROS_PRINCIPAL_KEY, ""));
  
     // Create the client
+    String regionId = MirrorUtil.getRegionId(conf);
     RefreshCallQueueProtocol refreshProtocol =
       NameNodeProxies.createProxy(conf, FileSystem.getDefaultUri(conf),
-          RefreshCallQueueProtocol.class).getProxy();
+          RefreshCallQueueProtocol.class, regionId).getProxy();
 
     // Refresh the call queue
     refreshProtocol.refreshCallQueue();

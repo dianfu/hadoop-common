@@ -54,6 +54,10 @@ import org.apache.hadoop.hdfs.server.namenode.ha.AbstractNNFailoverProxyProvider
 import org.apache.hadoop.hdfs.server.namenode.ha.WrappedFailoverProxyProvider;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
 import org.apache.hadoop.hdfs.server.namenode.SafeModeException;
+import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorUtil;
+import org.apache.hadoop.hdfs.server.namenode.mirror.journal.protocol.MirrorJournalProtocol;
+import org.apache.hadoop.hdfs.server.namenode.mirror.journal.protocolPB.MirrorJournalProtocolPB;
+import org.apache.hadoop.hdfs.server.namenode.mirror.journal.protocolPB.MirrorJournalProtocolTranslatorPB;
 import org.apache.hadoop.hdfs.server.protocol.JournalProtocol;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocol;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocols;
@@ -137,9 +141,9 @@ public class NameNodeProxies {
    **/
   @SuppressWarnings("unchecked")
   public static <T> ProxyAndInfo<T> createProxy(Configuration conf,
-      URI nameNodeUri, Class<T> xface) throws IOException {
+      URI nameNodeUri, Class<T> xface, String regionId) throws IOException {
     AbstractNNFailoverProxyProvider<T> failoverProxyProvider =
-        createFailoverProxyProvider(conf, nameNodeUri, xface, true);
+        createFailoverProxyProvider(conf, nameNodeUri, xface, true, regionId);
   
     if (failoverProxyProvider == null) {
       // Non-HA case
@@ -188,8 +192,9 @@ public class NameNodeProxies {
       Configuration config, URI nameNodeUri, Class<T> xface,
       int numResponseToDrop) throws IOException {
     Preconditions.checkArgument(numResponseToDrop > 0);
+    String regionId = MirrorUtil.getRegionId(config);
     AbstractNNFailoverProxyProvider<T> failoverProxyProvider =
-        createFailoverProxyProvider(config, nameNodeUri, xface, true);
+        createFailoverProxyProvider(config, nameNodeUri, xface, true, regionId);
 
     if (failoverProxyProvider != null) { // HA case
       int delay = config.getInt(
@@ -266,6 +271,8 @@ public class NameNodeProxies {
           conf, ugi);
     } else if (xface == RefreshCallQueueProtocol.class) {
       proxy = (T) createNNProxyWithRefreshCallQueueProtocol(nnAddr, conf, ugi);
+    } else if (xface == MirrorJournalProtocol.class) {
+      proxy = (T) createNNProxyWithMirrorJournalProtocol(nnAddr, conf, ugi, withRetries);
     } else {
       String message = "Unsupported protocol found when creating the proxy " +
           "connection to NameNode: " +
@@ -339,6 +346,30 @@ public class NameNodeProxies {
     return new NamenodeProtocolTranslatorPB(proxy);
   }
   
+  private static MirrorJournalProtocol createNNProxyWithMirrorJournalProtocol (
+      InetSocketAddress address, Configuration conf, UserGroupInformation ugi,
+      boolean withRetries) throws IOException {
+    MirrorJournalProtocolPB proxy = (MirrorJournalProtocolPB) createNameNodeProxy(
+        address, conf, ugi, MirrorJournalProtocolPB.class, 0);
+    if (withRetries) { // create the proxy with retries
+      RetryPolicy timeoutPolicy = RetryPolicies.exponentialBackoffRetry(5, 200,
+          TimeUnit.MILLISECONDS);
+      Map<Class<? extends Exception>, RetryPolicy> exceptionToPolicyMap
+                     = new HashMap<Class<? extends Exception>, RetryPolicy>();
+      RetryPolicy methodPolicy = RetryPolicies.retryByException(timeoutPolicy,
+          exceptionToPolicyMap);
+      Map<String, RetryPolicy> methodNameToPolicyMap
+                     = new HashMap<String, RetryPolicy>();
+      methodNameToPolicyMap.put("getJournalState", methodPolicy);
+      methodNameToPolicyMap.put("journal", methodPolicy);
+      methodNameToPolicyMap.put("startLogSegment", methodPolicy);
+      methodNameToPolicyMap.put("finalizeLogSegment", methodPolicy);
+      proxy = (MirrorJournalProtocolPB) RetryProxy.create(MirrorJournalProtocolPB.class,
+          proxy, methodNameToPolicyMap);
+    }
+    return new MirrorJournalProtocolTranslatorPB(proxy);
+  }
+
   private static ClientProtocol createNNProxyWithClientProtocol(
       InetSocketAddress address, Configuration conf, UserGroupInformation ugi,
       boolean withRetries) throws IOException {
@@ -432,8 +463,8 @@ public class NameNodeProxies {
   /** Creates the Failover proxy provider instance*/
   @VisibleForTesting
   public static <T> AbstractNNFailoverProxyProvider<T> createFailoverProxyProvider(
-      Configuration conf, URI nameNodeUri, Class<T> xface, boolean checkPort)
-      throws IOException {
+      Configuration conf, URI nameNodeUri, Class<T> xface, boolean checkPort,
+      String regionId) throws IOException {
     Class<FailoverProxyProvider<T>> failoverProxyProviderClass = null;
     AbstractNNFailoverProxyProvider<T> providerNN;
     Preconditions.checkArgument(
@@ -448,9 +479,9 @@ public class NameNodeProxies {
       }
       // Create a proxy provider instance.
       Constructor<FailoverProxyProvider<T>> ctor = failoverProxyProviderClass
-          .getConstructor(Configuration.class, URI.class, Class.class);
+          .getConstructor(Configuration.class, URI.class, Class.class, String.class);
       FailoverProxyProvider<T> provider = ctor.newInstance(conf, nameNodeUri,
-          xface);
+          xface, regionId);
 
       // If the proxy provider is of an old implementation, wrap it.
       if (!(provider instanceof AbstractNNFailoverProxyProvider)) {

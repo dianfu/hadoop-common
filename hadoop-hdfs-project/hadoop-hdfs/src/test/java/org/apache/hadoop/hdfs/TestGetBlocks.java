@@ -42,6 +42,7 @@ import org.apache.hadoop.hdfs.server.common.GenerationStamp;
 import org.apache.hadoop.hdfs.server.datanode.DataNode;
 import org.apache.hadoop.hdfs.server.datanode.DataNodeTestUtils;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
+import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorUtil;
 import org.apache.hadoop.hdfs.server.protocol.BlocksWithLocations.BlockWithLocations;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocol;
 import org.apache.hadoop.ipc.RemoteException;
@@ -219,7 +220,7 @@ public class TestGetBlocks {
       InetSocketAddress addr = new InetSocketAddress("localhost",
           cluster.getNameNodePort());
       NamenodeProtocol namenode = NameNodeProxies.createProxy(CONF,
-          NameNode.getUri(addr), NamenodeProtocol.class).getProxy();
+          NameNode.getUri(addr), NamenodeProtocol.class, null).getProxy();
 
       // get blocks of size fileLen from dataNodes[0]
       BlockWithLocations[] locs;

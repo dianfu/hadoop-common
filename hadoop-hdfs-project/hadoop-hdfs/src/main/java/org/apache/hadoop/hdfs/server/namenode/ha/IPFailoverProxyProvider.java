@@ -58,7 +58,7 @@ public class IPFailoverProxyProvider<T> extends
   private ProxyInfo<T> nnProxyInfo = null;
   
   public IPFailoverProxyProvider(Configuration conf, URI uri,
-      Class<T> xface) {
+      Class<T> xface, String regionId) {
     Preconditions.checkArgument(
         xface.isAssignableFrom(NamenodeProtocols.class),
         "Interface class %s is not a valid NameNode protocol!");

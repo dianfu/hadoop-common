@@ -247,10 +247,11 @@ public class HAUtil {
    */
   public static boolean useLogicalUri(Configuration conf, URI nameNodeUri) 
       throws IOException {
+    String regionId = MirrorUtil.getRegionId(conf);
     // Create the proxy provider. Actual proxy is not created.
     AbstractNNFailoverProxyProvider<ClientProtocol> provider = NameNodeProxies
         .createFailoverProxyProvider(conf, nameNodeUri, ClientProtocol.class,
-        false);
+        false, regionId);
 
     // No need to use logical URI since failover is not configured.
     if (provider == null) {

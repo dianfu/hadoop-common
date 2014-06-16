@@ -92,6 +92,7 @@ import org.apache.hadoop.hdfs.server.namenode.FSEditLogOp.RollingUpgradeOp;
 import org.apache.hadoop.hdfs.server.namenode.JournalSet.JournalAndStream;
 import org.apache.hadoop.hdfs.server.namenode.metrics.NameNodeMetrics;
 import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorUtil;
+import org.apache.hadoop.hdfs.server.namenode.mirror.journal.client.MirrorJournalManager;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeRegistration;
 import org.apache.hadoop.hdfs.server.protocol.NamespaceInfo;
 import org.apache.hadoop.hdfs.server.protocol.RemoteEditLogManifest;
@@ -269,11 +270,30 @@ public class FSEditLog implements LogsPurgeable {
         StorageDirectory sd = storage.getStorageDirectory(u);
         if (sd != null) {
           journalSet.add(new FileJournalManager(conf, sd, storage),
-              required, sharedEditsDirs.contains(u));
+              required, sharedEditsDirs.contains(u), false);
         }
       } else {
         journalSet.add(createJournal(u), required,
-            sharedEditsDirs.contains(u));
+                   sharedEditsDirs.contains(u), false);
+      }
+    }
+    
+    String nsId = DFSUtil.getNamenodeNameServiceId(conf);
+    if(MirrorUtil.isMirrorEnabled(conf, nsId) 
+        && MirrorUtil.isPrimaryCluster(conf)) {
+      // adding the mirror journals to the journal set
+      String regionId = MirrorUtil.getRegionId(conf);
+      // Get all regions including current region
+      Collection<String> regions = MirrorUtil.getRegionIds(conf, nsId);
+      for(String region : regions) {
+        if(region == null || region.isEmpty()) {
+          continue;
+        }
+        if(region.equalsIgnoreCase(regionId)) {
+          continue;
+        }
+        // add the mirror journal as required and writeOnly
+        journalSet.add(createMirrorJournal(region), true, false, true);
       }
     }
  
@@ -1416,6 +1436,83 @@ public class FSEditLog implements LogsPurgeable {
     }
   }
   
+  /**
+   * Transfer edit log to JournalManager jm from the transaction fromTxId.
+   */
+  public long syncLogsFrom(long fromTxId, JournalManager jm) throws IOException {
+    Iterable<EditLogInputStream> editStreams = selectInputStreams(
+        fromTxId, -1, null, false);
+
+    int maxOpSize = conf.getInt(DFSConfigKeys.DFS_NAMENODE_MAX_OP_SIZE_KEY,
+        DFSConfigKeys.DFS_NAMENODE_MAX_OP_SIZE_DEFAULT);
+    for (EditLogInputStream elis : editStreams) {
+      elis.setMaxOpSize(maxOpSize);
+    }
+
+    for (EditLogInputStream l : editStreams) {
+      LOG.debug("Planning to sync edit log stream: " + l + " to: " + jm);
+    }
+    if (!editStreams.iterator().hasNext()) {
+      LOG.info("No edit log streams selected.");
+    } else {
+      LOG.info("Beginning to sync edit log to mirror cluster from txId: "
+          + fromTxId);
+    }
+
+    long endTxId = -1;
+
+    try {
+      for (EditLogInputStream stream : editStreams) {
+        LOG.debug("Beginning to sync stream " + stream + " to mirror cluster");
+        FSEditLogOp op;
+        boolean segmentOpen = false;
+        EditLogOutputStream outputStream = null;
+        long curSegmentTxId = -1;
+        while ((op = stream.readOp()) != null) {
+          if (LOG.isTraceEnabled()) {
+            LOG.trace("syncing op: " + op);
+          }
+          if (!segmentOpen) {
+            outputStream = jm.startLogSegment(op.txid,
+                NameNodeLayoutVersion.CURRENT_LAYOUT_VERSION);
+            curSegmentTxId = op.txid;
+            segmentOpen = true;
+          }
+
+          outputStream.write(op);
+          endTxId = op.txid;
+
+          if (op.opCode == FSEditLogOpCodes.OP_END_LOG_SEGMENT) {
+            outputStream.setReadyToFlush();
+            outputStream.flush();
+            jm.finalizeLogSegment(curSegmentTxId, endTxId);
+            LOG.debug("ending log segment because of END_LOG_SEGMENT op in "
+                + stream);
+            segmentOpen = false;
+          }
+        }
+
+        if (segmentOpen) {
+          LOG.debug("ending log segment because of end of stream in " + stream);
+          outputStream.setReadyToFlush();
+          outputStream.flush();
+          jm.finalizeLogSegment(curSegmentTxId, endTxId);
+          segmentOpen = false;
+        }
+      }
+    } finally {
+      if (editStreams != null) {
+        FSEditLog.closeAllStreams(editStreams);
+      }
+    }
+
+    if (endTxId != -1) {
+      LOG.info("Synced edit log to mirror cluster from txId " 
+          + fromTxId + " to txId " + endTxId);
+    }
+    return endTxId;
+  }
+
   public long getSharedLogCTime() throws IOException {
     for (JournalAndStream jas : journalSet.getAllJournalStreams()) {
       if (jas.isShared()) {
@@ -1608,4 +1705,20 @@ public class FSEditLog implements LogsPurgeable {
     }
   }
 
+  /**
+  * Construct a mirror journal manager.
+  * @param regionId The region ID of the region
+  * @return The mirror journal manager
+  * @throws IllegalArgumentException if failed to create the mirror journal manager
+  */
+  private JournalManager createMirrorJournal(String regionId) {
+    try {
+      MirrorJournalManager mirrorJournalManager = 
+          new MirrorJournalManager(conf, regionId, storage.getNamespaceInfo(), this);
+      return mirrorJournalManager;
+    } catch (Exception e) {
+      throw new IllegalArgumentException("Unable to construct mirror journal for region: "
+                                         + regionId, e);
+    }
+  }
 }

@@ -111,7 +111,7 @@ public class TestBalancer {
     try {
       cluster.waitActive();
       client = NameNodeProxies.createProxy(conf, cluster.getFileSystem(0).getUri(),
-          ClientProtocol.class).getProxy();
+          ClientProtocol.class, null).getProxy();
 
       short replicationFactor = (short)(numNodes-1);
       long fileLen = size/replicationFactor;
@@ -206,7 +206,7 @@ public class TestBalancer {
                                               .build();
     cluster.waitActive();
     client = NameNodeProxies.createProxy(conf, cluster.getFileSystem(0).getUri(),
-        ClientProtocol.class).getProxy();
+        ClientProtocol.class, null).getProxy();
 
     for(int i = 0; i < blocksDN.length; i++)
       cluster.injectBlocks(i, Arrays.asList(blocksDN[i]), null);
@@ -338,7 +338,7 @@ public class TestBalancer {
     try {
       cluster.waitActive();
       client = NameNodeProxies.createProxy(conf, cluster.getFileSystem(0).getUri(),
-          ClientProtocol.class).getProxy();
+          ClientProtocol.class, null).getProxy();
 
       long totalCapacity = sum(capacities);
       
@@ -486,7 +486,7 @@ public class TestBalancer {
     try {
       cluster.waitActive();
       client = NameNodeProxies.createProxy(conf, cluster.getFileSystem(0).getUri(),
-          ClientProtocol.class).getProxy();
+          ClientProtocol.class, null).getProxy();
 
       long totalCapacity = sum(capacities);
 

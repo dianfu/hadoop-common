@@ -30,6 +30,7 @@ import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.hdfs.NameNodeProxies;
 import org.apache.hadoop.hdfs.protocol.ClientProtocol;
 import org.apache.hadoop.hdfs.server.common.JspHelper;
+import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorUtil;
 import org.apache.hadoop.ipc.RemoteException;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.znerd.xmlenc.XMLOutputter;
@@ -77,8 +78,9 @@ abstract class DfsServlet extends HttpServlet {
       NameNodeHttpServer.getNameNodeAddressFromContext(context);
     Configuration conf = new HdfsConfiguration(
         NameNodeHttpServer.getConfFromContext(context));
+    String regionId = MirrorUtil.getRegionId(conf);
     return NameNodeProxies.createProxy(conf, NameNode.getUri(nnAddr),
-        ClientProtocol.class).getProxy();
+        ClientProtocol.class, regionId).getProxy();
   }
 
   protected UserGroupInformation getUGI(HttpServletRequest request,

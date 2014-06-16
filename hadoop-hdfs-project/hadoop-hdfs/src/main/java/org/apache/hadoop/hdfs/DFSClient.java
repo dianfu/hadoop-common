@@ -169,6 +169,7 @@ import org.apache.hadoop.hdfs.server.common.HdfsServerConstants;
 import org.apache.hadoop.hdfs.server.datanode.CachingStrategy;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
 import org.apache.hadoop.hdfs.server.namenode.SafeModeException;
+import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorUtil;
 import org.apache.hadoop.io.DataOutputBuffer;
 import org.apache.hadoop.io.EnumSetWritable;
 import org.apache.hadoop.io.IOUtils;
@@ -597,8 +598,9 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory {
     } else {
       Preconditions.checkArgument(nameNodeUri != null,
           "null URI");
+      String regionId = MirrorUtil.getRegionId(conf);
       proxyInfo = NameNodeProxies.createProxy(conf, nameNodeUri,
-          ClientProtocol.class);
+          ClientProtocol.class, regionId);
       this.dtService = proxyInfo.getDelegationTokenService();
       this.namenode = proxyInfo.getProxy();
     }
@@ -1093,8 +1095,9 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory {
             "a failover proxy provider configured.");
       }
       
+      String regionId = MirrorUtil.getRegionId(conf);
       NameNodeProxies.ProxyAndInfo<ClientProtocol> info =
-        NameNodeProxies.createProxy(conf, uri, ClientProtocol.class);
+        NameNodeProxies.createProxy(conf, uri, ClientProtocol.class, regionId);
       assert info.getDelegationTokenService().equals(token.getService()) :
         "Returned service '" + info.getDelegationTokenService().toString() +
         "' doesn't match expected service '" +

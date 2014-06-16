@@ -81,12 +81,14 @@ public class JournalSet implements JournalManager {
     private EditLogOutputStream stream;
     private final boolean required;
     private final boolean shared;
+    private boolean writeOnly = false;
     
     public JournalAndStream(JournalManager manager, boolean required,
-        boolean shared) {
+        boolean shared, boolean writeOnly) {
       this.journal = manager;
       this.required = required;
       this.shared = shared;
+      this.writeOnly = writeOnly;
     }
 
     public void startLogSegment(long txId, int layoutVersion) throws IOException {
@@ -172,6 +174,10 @@ public class JournalSet implements JournalManager {
     public boolean isShared() {
       return shared;
     }
+
+    public boolean isWriteOnly() {
+      return writeOnly;
+    }
   }
  
   // COW implementation is necessary since some users (eg the web ui) call
@@ -255,6 +261,12 @@ public class JournalSet implements JournalManager {
         LOG.info("Skipping jas " + jas + " since it's disabled");
         continue;
       }
+
+      if (jas.isWriteOnly()) {
+        LOG.info("Skipping jas " + jas + " since it's write only");
+        continue;
+      }
+
       try {
         jas.getManager().selectInputStreams(allStreams, fromTxId, inProgressOk);
       } catch (IOException ioe) {
@@ -549,11 +561,11 @@ public class JournalSet implements JournalManager {
   }
   
   void add(JournalManager j, boolean required) {
-    add(j, required, false);
+    add(j, required, false, false);
   }
   
-  void add(JournalManager j, boolean required, boolean shared) {
-    JournalAndStream jas = new JournalAndStream(j, required, shared);
+  void add(JournalManager j, boolean required, boolean shared, boolean writeOnly) {
+    JournalAndStream jas = new JournalAndStream(j, required, shared, writeOnly);
     journals.add(jas);
   }
   

@@ -232,7 +232,7 @@ public class TestBalancerWithNodeGroup {
       cluster.waitActive();
       client = NameNodeProxies.createProxy(conf, 
           cluster.getFileSystem(0).getUri(),
-          ClientProtocol.class).getProxy();
+          ClientProtocol.class, null).getProxy();
 
       long totalCapacity = TestBalancer.sum(capacities);
 
@@ -291,7 +291,7 @@ public class TestBalancerWithNodeGroup {
       cluster.waitActive();
       client = NameNodeProxies.createProxy(conf, 
           cluster.getFileSystem(0).getUri(),
-          ClientProtocol.class).getProxy();
+          ClientProtocol.class, null).getProxy();
 
       long totalCapacity = TestBalancer.sum(capacities);
       // fill up the cluster to be 20% full
@@ -345,7 +345,7 @@ public class TestBalancerWithNodeGroup {
       cluster.waitActive();
       client = NameNodeProxies.createProxy(conf, 
           cluster.getFileSystem(0).getUri(),
-          ClientProtocol.class).getProxy();
+          ClientProtocol.class, null).getProxy();
 
       long totalCapacity = TestBalancer.sum(capacities);
       // fill up the cluster to be 60% full

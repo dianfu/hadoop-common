@@ -39,6 +39,7 @@ import org.apache.hadoop.hdfs.protocol.datatransfer.TrustedChannelResolver;
 import org.apache.hadoop.hdfs.security.token.block.BlockTokenIdentifier;
 import org.apache.hadoop.hdfs.security.token.block.BlockTokenSecretManager;
 import org.apache.hadoop.hdfs.security.token.block.ExportedBlockKeys;
+import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorUtil;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocol;
 import org.apache.hadoop.hdfs.server.protocol.NamespaceInfo;
 import org.apache.hadoop.io.IOUtils;
@@ -78,11 +79,12 @@ class NameNodeConnector {
       Configuration conf) throws IOException {
     this.nameNodeUri = nameNodeUri;
     
+    String regionId = MirrorUtil.getRegionId(conf);
     this.namenode =
-      NameNodeProxies.createProxy(conf, nameNodeUri, NamenodeProtocol.class)
+      NameNodeProxies.createProxy(conf, nameNodeUri, NamenodeProtocol.class, regionId)
         .getProxy();
     this.client =
-      NameNodeProxies.createProxy(conf, nameNodeUri, ClientProtocol.class)
+      NameNodeProxies.createProxy(conf, nameNodeUri, ClientProtocol.class, regionId)
         .getProxy();
     this.fs = FileSystem.get(nameNodeUri, conf);
 

@@ -46,6 +46,7 @@ import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.StartupOption;
 import org.apache.hadoop.hdfs.server.namenode.ha.*;
 import org.apache.hadoop.hdfs.server.namenode.metrics.NameNodeMetrics;
 import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorUtil;
+import org.apache.hadoop.hdfs.server.namenode.mirror.journal.protocol.MirrorJournalProtocol;
 import org.apache.hadoop.hdfs.server.namenode.startupprogress.StartupProgress;
 import org.apache.hadoop.hdfs.server.namenode.startupprogress.StartupProgressMetrics;
 import org.apache.hadoop.hdfs.server.protocol.*;
@@ -238,6 +239,8 @@ public class NameNode implements NameNodeStatusMXBean {
       return RefreshCallQueueProtocol.versionID;
     } else if (protocol.equals(GetUserMappingsProtocol.class.getName())){
       return GetUserMappingsProtocol.versionID;
+    } else if (protocol.equals(MirrorJournalProtocol.class.getName())){
+      return MirrorJournalProtocol.versionID;
     } else {
       throw new IOException("Unknown protocol to name node: " + protocol);
     }
