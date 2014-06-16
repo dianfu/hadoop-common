@@ -78,7 +78,8 @@ public class NNStorage extends Storage implements Closeable,
     EDITS_NEW ("edits.new"), // from "old" pre-HDFS-1073 format
     EDITS_INPROGRESS ("edits_inprogress"),
     EDITS_TMP ("edits_tmp"),
-    IMAGE_LEGACY_OIV ("fsimage_legacy_oiv");  // For pre-PB format
+    IMAGE_LEGACY_OIV ("fsimage_legacy_oiv"),  // For pre-PB format
+    NS_SYNCED_WITH_PRIMARY ("ns_synced_with_primary");
 
     private String fileName = null;
     private NameNodeFile(String name) { this.fileName = name; }
@@ -738,7 +739,22 @@ public class NNStorage extends Storage implements Closeable,
     return String.format("%s_%019d-%019d_%019d", NameNodeFile.EDITS_TMP.getName(),
                          startTxId, endTxId, timestamp);
   }
-  
+
+  public static File getNamespaceSyncedStatusFile(StorageDirectory sd) {
+    return new File(sd.getCurrentDir(),
+        NameNodeFile.NS_SYNCED_WITH_PRIMARY.getName());
+  }
+
+  public List<File> getNamespaceSyncedStatusFile() {
+    List<File> nsSyncedStatusFiles = new ArrayList<File>();
+    for (Iterator<StorageDirectory> it =
+                           dirIterator(NameNodeDirType.IMAGE); it.hasNext();) {
+      StorageDirectory sd = it.next();
+      nsSyncedStatusFiles.add(getNamespaceSyncedStatusFile(sd));
+    }
+    return nsSyncedStatusFiles;
+  }
+
   /**
    * Return the first readable finalized edits file for the given txid.
    */

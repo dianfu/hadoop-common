@@ -99,6 +99,12 @@ public class FSImage implements Closeable {
   protected NNStorageRetentionManager archivalManager;
 
   /**
+   * Used by mirror cluster to determine whether the namespaceInfo
+   * of mirror cluster has been synchronized with primary cluster.
+   */
+  private boolean nsInfoSyncedWithPrimary = false;
+
+  /**
    * Construct an FSImage
    * @param conf Configuration
    * @throws IOException if default directories are invalid.
@@ -149,6 +155,20 @@ public class FSImage implements Closeable {
     storage.format(ns);
     editLog.formatNonFileJournals(ns);
     saveFSImageInAllDirs(fsn, 0);
+  }
+  
+  public void format(FSNamesystem fsn, NamespaceInfo ns) throws IOException {
+    long fileCount = fsn.getTotalFiles();
+    // Expect 1 file, which is the root inode
+    Preconditions.checkState(fileCount == 1,
+        "FSImage.format should be called with an uninitialized namesystem, has " +
+        fileCount + " files");
+    
+    storage.format(ns);
+    editLog.formatNonFileJournals(ns);
+    saveFSImageInAllDirs(fsn, 0);
+    
+    fsn.setBlockPoolId(ns.getBlockPoolID());
   }
   
   /**
@@ -661,6 +681,7 @@ public class FSImage implements Closeable {
       throw new IOException("Failed to load an FSImage file!");
     }
     prog.endPhase(Phase.LOADING_FSIMAGE);
+    loadNamespaceSyncedStatus(imageFile.sd);
     
     if (!rollingRollback) {
       long txnsAdvanced = loadEdits(editStreams, target, startOpt, recovery);
@@ -1424,5 +1445,33 @@ public class FSImage implements Closeable {
   // old value.
   public long getMostRecentCheckpointTxId() {
     return storage.getMostRecentCheckpointTxId();
+  }
+
+  public boolean getNamespaceSyncedStatus() {
+    return nsInfoSyncedWithPrimary;
+  }
+
+  public void loadNamespaceSyncedStatus(StorageDirectory sd) {
+    nsInfoSyncedWithPrimary = NNStorage.getNamespaceSyncedStatusFile(sd).exists();
+  }
+
+  /**
+   * Mark that the {@link NamespaceInfo} of mirror clusterhas been
+   * synchronized with primary cluster. 
+   */
+  public void setNamespaceSyncedStatus(boolean synced) throws IOException {
+    List<File> nsSyncedStatusFiles = storage.getNamespaceSyncedStatusFile();
+    if (synced) {
+      for (File f : nsSyncedStatusFiles) {
+        f.createNewFile();
+      }
+    } else {
+      for (File f : nsSyncedStatusFiles) {
+        if (f.exists()) {
+          f.delete();
+        }
+      }
+    }
+    nsInfoSyncedWithPrimary = synced;
   }
 }

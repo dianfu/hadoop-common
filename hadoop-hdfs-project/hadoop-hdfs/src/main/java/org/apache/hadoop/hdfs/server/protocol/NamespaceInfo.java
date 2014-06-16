@@ -37,13 +37,12 @@ import org.apache.hadoop.util.VersionInfo;
 @InterfaceAudience.Private
 @InterfaceStability.Evolving
 public class NamespaceInfo extends StorageInfo {
-  final String  buildVersion;
+  String  buildVersion = "";
   String blockPoolID = "";    // id of the block pool
-  String softwareVersion;
+  String softwareVersion = "";
 
   public NamespaceInfo() {
     super(NodeType.NAME_NODE);
-    buildVersion = null;
   }
 
   public NamespaceInfo(int nsID, String clusterID, String bpID,

@@ -1470,6 +1470,11 @@ public class FSNamesystem implements Namesystem, FSClusterStats,
   NamespaceInfo getNamespaceInfo() {
     readLock();
     try {
+      if (mirrorManager != null && !mirrorManager.isPrimaryCluster()) {
+        if (!mirrorManager.getNamespaceSyncedStatus()) {
+          return new NamespaceInfo();
+        }
+      }
       return unprotectedGetNamespaceInfo();
     } finally {
       readUnlock();

@@ -404,7 +404,7 @@ public class BackupNode extends NameNode {
   private static NamespaceInfo handshake(NamenodeProtocol namenode)
   throws IOException, SocketTimeoutException {
     NamespaceInfo nsInfo;
-    nsInfo = namenode.versionRequest();  // throws SocketTimeoutException 
+    nsInfo = namenode.versionRequest();  // throws SocketTimeoutException
     String errorMsg = null;
     // verify build version
     if( ! nsInfo.getBuildVersion().equals( Storage.getBuildVersion())) {

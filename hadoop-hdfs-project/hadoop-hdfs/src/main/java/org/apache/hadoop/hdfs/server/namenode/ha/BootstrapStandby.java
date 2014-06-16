@@ -143,15 +143,28 @@ public class BootstrapStandby implements Tool, Configurable {
 
     NamenodeProtocol proxy = createNNProtocolProxy();
     NamespaceInfo nsInfo;
-    try {
-      nsInfo = proxy.versionRequest();
-    } catch (IOException ioe) {
-      LOG.fatal("Unable to fetch namespace information from active NN at " +
-          otherIpcAddr + ": " + ioe.getMessage());
-      if (LOG.isDebugEnabled()) {
-        LOG.debug("Full exception trace", ioe);
+    while (true) {
+      try {
+        nsInfo = proxy.versionRequest();
+      } catch (IOException ioe) {
+        LOG.fatal("Unable to fetch namespace information from active NN at " +
+            otherIpcAddr + ": " + ioe.getMessage());
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("Full exception trace", ioe);
+        }
+        return ERR_CODE_FAILED_CONNECT;
       }
-      return ERR_CODE_FAILED_CONNECT;
+      
+      if (!nsInfo.getClusterID().isEmpty()) {
+        break;
+      } else {
+        try {
+          Thread.sleep(1000);
+        } catch (InterruptedException e) {
+          LOG.error("Encounter InterruptedException ", e);
+          throw new IOException(e);
+        }
+      }
     }
 
     if (!checkLayoutVersion(nsInfo)) {

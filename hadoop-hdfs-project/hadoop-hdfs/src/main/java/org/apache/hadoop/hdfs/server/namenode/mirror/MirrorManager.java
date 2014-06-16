@@ -251,9 +251,27 @@ public class MirrorManager {
   }
 
   public JournalState getJournalState(boolean resetIPCSerial,
-      NamespaceInfo nsInfo) {
+      NamespaceInfo nsInfo) throws IOException {
     JournalState js = mirrorJournal.getJournalState(resetIPCSerial);
+    format(nsInfo);
     return js;
+  }
+
+  void format(NamespaceInfo nsInfo) throws IOException {
+    if (!getNamespaceSyncedStatus()) {
+      namesystem.getFSImage().format(namesystem, nsInfo);
+      namesystem.getFSImage().setNamespaceSyncedStatus(true);
+    }
+  }
+
+  /**
+   * Used by mirror cluster to determine whether it's {@link NamespaceInfo}
+   * has been synchronized with primary cluster.
+   *
+   * @return true if the namespace info has been synchronized with primary cluster
+   */
+  public boolean getNamespaceSyncedStatus() {
+    return namesystem.getFSImage().getNamespaceSyncedStatus();
   }
 
   public void journal(RequestInfo reqInfo, long segmentTxId, long firstTxnId,
