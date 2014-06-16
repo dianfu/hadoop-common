@@ -8167,6 +8167,12 @@ public class FSNamesystem implements Namesystem, FSClusterStats,
     mirrorManager.checkMirrorJournalOperation();
   }
 
+  public void checkPrimaryOperation() throws IOException {
+    if (mirrorEnabled) {
+      mirrorManager.checkPrimaryOperation();
+    }
+  }
+
   public JournalState getJournalState(boolean resetIPCSerial,
       NamespaceInfo nsInfo) throws IOException {
     checkMirrorEnabled();

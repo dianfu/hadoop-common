@@ -505,18 +505,21 @@ class NameNodeRpcServer implements NamenodeProtocols {
   @Override // ClientProtocol
   public Token<DelegationTokenIdentifier> getDelegationToken(Text renewer)
       throws IOException {
+    namesystem.checkPrimaryOperation();
     return namesystem.getDelegationToken(renewer);
   }
 
   @Override // ClientProtocol
   public long renewDelegationToken(Token<DelegationTokenIdentifier> token)
       throws InvalidToken, IOException {
+    namesystem.checkPrimaryOperation();
     return namesystem.renewDelegationToken(token);
   }
 
   @Override // ClientProtocol
   public void cancelDelegationToken(Token<DelegationTokenIdentifier> token)
       throws IOException {
+    namesystem.checkPrimaryOperation();
     namesystem.cancelDelegationToken(token);
   }
   
@@ -540,6 +543,7 @@ class NameNodeRpcServer implements NamenodeProtocols {
       String clientName, EnumSetWritable<CreateFlag> flag,
       boolean createParent, short replication, long blockSize)
       throws IOException {
+    namesystem.checkPrimaryOperation();
     String clientMachine = getClientMachine();
     if (stateChangeLog.isDebugEnabled()) {
       stateChangeLog.debug("*DIR* NameNode.create: file "
@@ -561,6 +565,7 @@ class NameNodeRpcServer implements NamenodeProtocols {
   @Override // ClientProtocol
   public LocatedBlock append(String src, String clientName) 
       throws IOException {
+    namesystem.checkPrimaryOperation();
     String clientMachine = getClientMachine();
     if (stateChangeLog.isDebugEnabled()) {
       stateChangeLog.debug("*DIR* NameNode.append: file "
@@ -573,6 +578,7 @@ class NameNodeRpcServer implements NamenodeProtocols {
 
   @Override // ClientProtocol
   public boolean recoverLease(String src, String clientName) throws IOException {
+    namesystem.checkPrimaryOperation();
     String clientMachine = getClientMachine();
     return namesystem.recoverLease(src, clientName, clientMachine);
   }
@@ -580,18 +586,21 @@ class NameNodeRpcServer implements NamenodeProtocols {
   @Override // ClientProtocol
   public boolean setReplication(String src, short replication) 
     throws IOException {  
+    namesystem.checkPrimaryOperation();
     return namesystem.setReplication(src, replication);
   }
     
   @Override // ClientProtocol
   public void setPermission(String src, FsPermission permissions)
       throws IOException {
+    namesystem.checkPrimaryOperation();
     namesystem.setPermission(src, permissions);
   }
 
   @Override // ClientProtocol
   public void setOwner(String src, String username, String groupname)
       throws IOException {
+    namesystem.checkPrimaryOperation();
     namesystem.setOwner(src, username, groupname);
   }
   
@@ -600,6 +609,7 @@ class NameNodeRpcServer implements NamenodeProtocols {
       ExtendedBlock previous, DatanodeInfo[] excludedNodes, long fileId,
       String[] favoredNodes)
       throws IOException {
+    namesystem.checkPrimaryOperation();
     if (stateChangeLog.isDebugEnabled()) {
       stateChangeLog.debug("*BLOCK* NameNode.addBlock: file " + src
           + " fileId=" + fileId + " for " + clientName);
@@ -655,6 +665,7 @@ class NameNodeRpcServer implements NamenodeProtocols {
   @Override // ClientProtocol
   public void abandonBlock(ExtendedBlock b, long fileId, String src,
         String holder) throws IOException {
+    namesystem.checkPrimaryOperation();
     if(stateChangeLog.isDebugEnabled()) {
       stateChangeLog.debug("*BLOCK* NameNode.abandonBlock: "
           +b+" of file "+src);
@@ -668,6 +679,7 @@ class NameNodeRpcServer implements NamenodeProtocols {
   public boolean complete(String src, String clientName,
                           ExtendedBlock last,  long fileId)
       throws IOException {
+    namesystem.checkPrimaryOperation();
     if(stateChangeLog.isDebugEnabled()) {
       stateChangeLog.debug("*DIR* NameNode.complete: "
           + src + " fileId=" + fileId +" for " + clientName);
@@ -683,12 +695,14 @@ class NameNodeRpcServer implements NamenodeProtocols {
    */
   @Override // ClientProtocol, DatanodeProtocol
   public void reportBadBlocks(LocatedBlock[] blocks) throws IOException {
+    namesystem.checkPrimaryOperation();
     namesystem.reportBadBlocks(blocks);
   }
 
   @Override // ClientProtocol
   public LocatedBlock updateBlockForPipeline(ExtendedBlock block, String clientName)
       throws IOException {
+    namesystem.checkPrimaryOperation();
     return namesystem.updateBlockForPipeline(block, clientName);
   }
 
@@ -697,6 +711,7 @@ class NameNodeRpcServer implements NamenodeProtocols {
   public void updatePipeline(String clientName, ExtendedBlock oldBlock,
       ExtendedBlock newBlock, DatanodeID[] newNodes, String[] newStorageIDs)
       throws IOException {
+    namesystem.checkPrimaryOperation();
     namesystem.updatePipeline(clientName, oldBlock, newBlock, newNodes, newStorageIDs);
   }
   
@@ -719,6 +734,7 @@ class NameNodeRpcServer implements NamenodeProtocols {
   @Deprecated
   @Override // ClientProtocol
   public boolean rename(String src, String dst) throws IOException {
+    namesystem.checkPrimaryOperation();
     if(stateChangeLog.isDebugEnabled()) {
       stateChangeLog.debug("*DIR* NameNode.rename: " + src + " to " + dst);
     }
@@ -735,12 +751,14 @@ class NameNodeRpcServer implements NamenodeProtocols {
   
   @Override // ClientProtocol
   public void concat(String trg, String[] src) throws IOException {
+    namesystem.checkPrimaryOperation();
     namesystem.concat(trg, src);
   }
   
   @Override // ClientProtocol
   public void rename2(String src, String dst, Options.Rename... options)
       throws IOException {
+    namesystem.checkPrimaryOperation();
     if(stateChangeLog.isDebugEnabled()) {
       stateChangeLog.debug("*DIR* NameNode.rename: " + src + " to " + dst);
     }
@@ -754,6 +772,7 @@ class NameNodeRpcServer implements NamenodeProtocols {
 
   @Override // ClientProtocol
   public boolean delete(String src, boolean recursive) throws IOException {
+    namesystem.checkPrimaryOperation();
     if (stateChangeLog.isDebugEnabled()) {
       stateChangeLog.debug("*DIR* Namenode.delete: src=" + src
           + ", recursive=" + recursive);
@@ -778,6 +797,7 @@ class NameNodeRpcServer implements NamenodeProtocols {
   @Override // ClientProtocol
   public boolean mkdirs(String src, FsPermission masked, boolean createParent)
       throws IOException {
+    namesystem.checkPrimaryOperation();
     if(stateChangeLog.isDebugEnabled()) {
       stateChangeLog.debug("*DIR* NameNode.mkdirs: " + src);
     }
@@ -916,8 +936,10 @@ class NameNodeRpcServer implements NamenodeProtocols {
     case QUERY:
       return namesystem.queryRollingUpgrade();
     case PREPARE:
+      namesystem.checkPrimaryOperation();
       return namesystem.startRollingUpgrade();
     case FINALIZE:
+      namesystem.checkPrimaryOperation();
       return namesystem.finalizeRollingUpgrade();
     default:
       throw new UnsupportedActionException(action + " is not yet supported.");
@@ -963,6 +985,7 @@ class NameNodeRpcServer implements NamenodeProtocols {
   @Override // ClientProtocol
   public void setQuota(String path, long namespaceQuota, long diskspaceQuota) 
       throws IOException {
+    namesystem.checkPrimaryOperation();
     namesystem.setQuota(path, namespaceQuota, diskspaceQuota);
   }
   
@@ -970,18 +993,21 @@ class NameNodeRpcServer implements NamenodeProtocols {
   public void fsync(String src, long fileId, String clientName,
                     long lastBlockLength)
       throws IOException {
+    namesystem.checkPrimaryOperation();
     namesystem.fsync(src, fileId, clientName, lastBlockLength);
   }
 
   @Override // ClientProtocol
   public void setTimes(String src, long mtime, long atime) 
       throws IOException {
+    namesystem.checkPrimaryOperation();
     namesystem.setTimes(src, mtime, atime);
   }
 
   @Override // ClientProtocol
   public void createSymlink(String target, String link, FsPermission dirPerms,
       boolean createParent) throws IOException {
+    namesystem.checkPrimaryOperation();
     metrics.incrCreateSymlinkOps();
     /* We enforce the MAX_PATH_LENGTH limit even though a symlink target 
      * URI may refer to a non-HDFS file system. 
@@ -1267,6 +1293,7 @@ class NameNodeRpcServer implements NamenodeProtocols {
   @Override
   public String createSnapshot(String snapshotRoot, String snapshotName)
       throws IOException {
+    namesystem.checkPrimaryOperation();
     if (!checkPathLength(snapshotRoot)) {
       throw new IOException("createSnapshot: Pathname too long.  Limit "
           + MAX_PATH_LENGTH + " characters, " + MAX_PATH_DEPTH + " levels.");
@@ -1278,6 +1305,7 @@ class NameNodeRpcServer implements NamenodeProtocols {
   @Override
   public void deleteSnapshot(String snapshotRoot, String snapshotName)
       throws IOException {
+    namesystem.checkPrimaryOperation();
     metrics.incrDeleteSnapshotOps();
     namesystem.deleteSnapshot(snapshotRoot, snapshotName);
   }
@@ -1285,6 +1313,7 @@ class NameNodeRpcServer implements NamenodeProtocols {
   @Override
   // Client Protocol
   public void allowSnapshot(String snapshotRoot) throws IOException {
+    namesystem.checkPrimaryOperation();
     metrics.incrAllowSnapshotOps();
     namesystem.allowSnapshot(snapshotRoot);
   }
@@ -1292,6 +1321,7 @@ class NameNodeRpcServer implements NamenodeProtocols {
   @Override
   // Client Protocol
   public void disallowSnapshot(String snapshot) throws IOException {
+    namesystem.checkPrimaryOperation();
     metrics.incrDisAllowSnapshotOps();
     namesystem.disallowSnapshot(snapshot);
   }
@@ -1299,6 +1329,7 @@ class NameNodeRpcServer implements NamenodeProtocols {
   @Override
   public void renameSnapshot(String snapshotRoot, String snapshotOldName,
       String snapshotNewName) throws IOException {
+    namesystem.checkPrimaryOperation();
     if (snapshotNewName == null || snapshotNewName.isEmpty()) {
       throw new IOException("The new snapshot name is null or empty.");
     }
@@ -1327,17 +1358,20 @@ class NameNodeRpcServer implements NamenodeProtocols {
   @Override
   public long addCacheDirective(
       CacheDirectiveInfo path, EnumSet<CacheFlag> flags) throws IOException {
+    namesystem.checkPrimaryOperation();
     return namesystem.addCacheDirective(path, flags);
   }
 
   @Override
   public void modifyCacheDirective(
       CacheDirectiveInfo directive, EnumSet<CacheFlag> flags) throws IOException {
+    namesystem.checkPrimaryOperation();
     namesystem.modifyCacheDirective(directive, flags);
   }
 
   @Override
   public void removeCacheDirective(long id) throws IOException {
+    namesystem.checkPrimaryOperation();
     namesystem.removeCacheDirective(id);
   }
 
@@ -1352,16 +1386,19 @@ class NameNodeRpcServer implements NamenodeProtocols {
 
   @Override
   public void addCachePool(CachePoolInfo info) throws IOException {
+    namesystem.checkPrimaryOperation();
     namesystem.addCachePool(info);
   }
 
   @Override
   public void modifyCachePool(CachePoolInfo info) throws IOException {
+    namesystem.checkPrimaryOperation();
     namesystem.modifyCachePool(info);
   }
 
   @Override
   public void removeCachePool(String cachePoolName) throws IOException {
+    namesystem.checkPrimaryOperation();
     namesystem.removeCachePool(cachePoolName);
   }
 
@@ -1374,27 +1411,32 @@ class NameNodeRpcServer implements NamenodeProtocols {
   @Override
   public void modifyAclEntries(String src, List<AclEntry> aclSpec)
       throws IOException {
+    namesystem.checkPrimaryOperation();
     namesystem.modifyAclEntries(src, aclSpec);
   }
 
   @Override
   public void removeAclEntries(String src, List<AclEntry> aclSpec)
       throws IOException {
+    namesystem.checkPrimaryOperation();
     namesystem.removeAclEntries(src, aclSpec);
   }
 
   @Override
   public void removeDefaultAcl(String src) throws IOException {
+    namesystem.checkPrimaryOperation();
     namesystem.removeDefaultAcl(src);
   }
 
   @Override
   public void removeAcl(String src) throws IOException {
+    namesystem.checkPrimaryOperation();
     namesystem.removeAcl(src);
   }
 
   @Override
   public void setAcl(String src, List<AclEntry> aclSpec) throws IOException {
+    namesystem.checkPrimaryOperation();
     namesystem.setAcl(src, aclSpec);
   }
 
@@ -1406,6 +1448,7 @@ class NameNodeRpcServer implements NamenodeProtocols {
   @Override
   public void setXAttr(String src, XAttr xAttr, EnumSet<XAttrSetFlag> flag)
       throws IOException {
+    namesystem.checkPrimaryOperation();
     namesystem.setXAttr(src, xAttr, flag);
   }
   
@@ -1422,6 +1465,7 @@ class NameNodeRpcServer implements NamenodeProtocols {
   
   @Override
   public void removeXAttr(String src, XAttr xAttr) throws IOException {
+    namesystem.checkPrimaryOperation();
     namesystem.removeXAttr(src, xAttr);
   }
 
