@@ -57,6 +57,8 @@ public class MirrorJournal implements Closeable {
    */
   private long currentIpcSerial = -1;
 
+  private final MirrorJournalMetrics metrics;
+
   /**
    * Time threshold for sync calls, beyond which a warning should be logged to
    * the console.
@@ -66,6 +68,7 @@ public class MirrorJournal implements Closeable {
   public MirrorJournal(Configuration conf, String journalId,
       FSNamesystem namesystem) {
     this.journalId = journalId;
+    this.metrics = MirrorJournalMetrics.create(this);
     highestWrittenTxId = namesystem.getLastWrittenTransactionId();
     // initialize mirror journal set
     mirrorJournalSet = new MirrorJournalSet(namesystem);
@@ -145,10 +148,15 @@ public class MirrorJournal implements Closeable {
     curSegment.flush(true);
     sw.stop();
 
+    metrics.addSync(sw.elapsedTime(TimeUnit.MICROSECONDS));
     if (sw.elapsedTime(TimeUnit.MILLISECONDS) > WARN_SYNC_MILLIS_THRESHOLD) {
       LOG.warn("Sync of transaction range " + firstTxnId + "-" + lastTxnId
           + " took " + sw.elapsedTime(TimeUnit.MILLISECONDS) + "ms");
     }
+
+    metrics.batchesWritten.incr(1);
+    metrics.bytesWritten.incr(records.length);
+    metrics.txnsWritten.incr(numTxns);
 
     highestWrittenTxId = lastTxnId;
     nextTxId = lastTxnId + 1;

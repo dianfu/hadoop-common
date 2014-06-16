@@ -59,6 +59,8 @@ public class MirrorJournalLogger implements MirrorLogger {
 
   private final String journalId;
 
+  private final MirrorJournalLoggerMetrics metrics;
+
   /**
    * The number of bytes of edits data still in the queue.
    */
@@ -97,6 +99,8 @@ public class MirrorJournalLogger implements MirrorLogger {
     this.queueSizeLimitBytes = 1024 * 1024 * conf.getInt(
         DFSConfigKeys.DFS_QJOURNAL_QUEUE_SIZE_LIMIT_KEY,
         DFSConfigKeys.DFS_QJOURNAL_QUEUE_SIZE_LIMIT_DEFAULT);
+
+    metrics = MirrorJournalLoggerMetrics.create(this);
   }
 
   @Override
@@ -208,6 +212,7 @@ public class MirrorJournalLogger implements MirrorLogger {
         long now = Time.monotonicNow();
         long rpcTime = TimeUnit.MICROSECONDS.convert(
             now - rpcSendTimeNanos, TimeUnit.NANOSECONDS);
+        metrics.addWriteRpcLatency(rpcTime);
         if (rpcTime / 1000 > WARN_JOURNAL_MILLIS_THRESHOLD) {
           MirrorJournalManager.LOG.warn(
               "Took " + (rpcTime / 1000) + "ms to send a batch of " +
