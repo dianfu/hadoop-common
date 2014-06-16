@@ -362,7 +362,7 @@ public class FSEditLog implements LogsPurgeable {
   /**
    * Shutdown the file store.
    */
-  synchronized void close() {
+  public synchronized void close() {
     if (state == State.CLOSED) {
       LOG.debug("Closing log when already closed");
       return;
@@ -424,7 +424,7 @@ public class FSEditLog implements LogsPurgeable {
    * Write an operation to the edit log. Do not sync to persistent
    * store yet.
    */
-  void logEdit(final FSEditLogOp op) {
+  public void logEdit(final FSEditLogOp op) {
     synchronized (this) {
       assert isOpenForWrite() :
         "bad state: " + state;
@@ -482,7 +482,7 @@ public class FSEditLog implements LogsPurgeable {
    * 
    * @return true if any of the edit stream says that it should sync
    */
-  private boolean shouldForceSync() {
+  public boolean shouldForceSync() {
     return editLogStream.shouldForceSync();
   }
   
@@ -1268,7 +1268,7 @@ public class FSEditLog implements LogsPurgeable {
   /**
    * Abort all current logs. Called from the backup node.
    */
-  synchronized void abortCurrentLogSegment() {
+  public synchronized void abortCurrentLogSegment() {
     try {
       //Check for null, as abort can be called any time.
       if (editLogStream != null) {
@@ -1336,7 +1336,7 @@ public class FSEditLog implements LogsPurgeable {
 
 
   // sets the initial capacity of the flush buffer.
-  synchronized void setOutputBufferCapacity(int size) {
+  public synchronized void setOutputBufferCapacity(int size) {
     journalSet.setOutputBufferCapacity(size);
   }
 
@@ -1410,7 +1410,7 @@ public class FSEditLog implements LogsPurgeable {
    * Write an operation to the edit log. Do not sync to persistent
    * store yet.
    */   
-  synchronized void logEdit(final int length, final byte[] data) {
+  public synchronized void logEdit(final int length, final byte[] data) {
     long start = beginTransaction();
 
     try {
@@ -1513,6 +1513,35 @@ public class FSEditLog implements LogsPurgeable {
     return endTxId;
   }
 
+  // Used by MirrorJounalSet
+  public synchronized void setReadyToFlush() throws IOException {
+    Preconditions.checkState(isSegmentOpen(),
+        "Bad state: %s", state);
+
+    if (editLogStream != null) {
+      editLogStream.setReadyToFlush();
+    }
+  }
+
+  public synchronized void flushAndSync(boolean durable)
+      throws IOException {
+    Preconditions.checkState(isSegmentOpen(),
+        "Bad state: %s", state);
+
+    if (editLogStream != null) {
+      editLogStream.flushAndSync(durable);
+    }
+  }
+
+  public synchronized void flush() throws IOException {
+    Preconditions.checkState(isSegmentOpen(),
+        "Bad state: %s", state);
+
+    if (editLogStream != null) {
+      editLogStream.flush();
+    }
+  }
+  
   public long getSharedLogCTime() throws IOException {
     for (JournalAndStream jas : journalSet.getAllJournalStreams()) {
       if (jas.isShared()) {

@@ -26,6 +26,12 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
+import org.apache.hadoop.hdfs.server.namenode.mirror.journal.protocol.JournalState;
+import org.apache.hadoop.hdfs.server.namenode.mirror.journal.protocol.MirrorJournalProtocol;
+import org.apache.hadoop.hdfs.server.namenode.mirror.journal.protocol.RequestInfo;
+import org.apache.hadoop.hdfs.server.namenode.mirror.journal.server.MirrorJournal;
+import org.apache.hadoop.hdfs.server.protocol.NamespaceInfo;
+import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.util.ExitUtil.ExitException;
 
 /**
@@ -44,6 +50,9 @@ public class MirrorManager {
   private Configuration conf;
   private volatile ClusterState state;
   private MirrorContext mirrorContext;
+
+  // memebers for mirror cluster role
+  private MirrorJournal mirrorJournal;
 
   /**
    * Categories of mirror operations supported by the namenode.
@@ -118,9 +127,13 @@ public class MirrorManager {
   }
 
   public void startMirrorServices() {
+    mirrorJournal = new MirrorJournal(conf,
+        MIRROR_JOURNAL_IDENTIFIER, namesystem);
   }
 
   public void stopMirrorServices() {
+    IOUtils.cleanup(LOG, mirrorJournal);
+    mirrorJournal = null;
   }
 
   public void prepareToStopMirrorServices() {
@@ -235,5 +248,26 @@ public class MirrorManager {
         throws IOException {
       state.checkOperation(mirrorContext, op);
     }
+  }
+
+  public JournalState getJournalState(boolean resetIPCSerial,
+      NamespaceInfo nsInfo) {
+    JournalState js = mirrorJournal.getJournalState(resetIPCSerial);
+    return js;
+  }
+
+  public void journal(RequestInfo reqInfo, long segmentTxId, long firstTxnId,
+      int numTxns, byte[] records) throws IOException {
+    mirrorJournal.journal(reqInfo, segmentTxId, firstTxnId, numTxns, records);
+  }
+
+  public void startLogSegment(RequestInfo reqInfo, long txid, int layoutVersion)
+      throws IOException {
+    mirrorJournal.startLogSegment(reqInfo, txid, layoutVersion);
+  }
+
+  public void finalizeLogSegment(RequestInfo reqInfo, long startTxId,
+      long endTxId) throws IOException {
+    mirrorJournal.finalizeLogSegment(reqInfo, startTxId, endTxId);
   }
 }

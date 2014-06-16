@@ -800,12 +800,22 @@ public class FSImage implements Closeable {
     try {    
       FSEditLogLoader loader = new FSEditLogLoader(target, lastAppliedTxId);
       
+      String nsId = DFSUtil.getNamenodeNameServiceId(conf);
+      boolean isMirror = MirrorUtil.isMirrorEnabled(conf, nsId) ?
+        !MirrorUtil.isPrimaryCluster(conf) : false;
       // Load latest edits
       for (EditLogInputStream editIn : editStreams) {
-        LOG.info("Reading " + editIn + " expecting start txid #" +
-              (lastAppliedTxId + 1));
+        if (!isMirror) {
+          LOG.info("Reading " + editIn + " expecting start txid #" +
+                (lastAppliedTxId + 1));
+        }
         try {
-          loader.loadFSEdits(editIn, lastAppliedTxId + 1, startOpt, recovery);
+          if (!isMirror) {
+            loader.loadFSEdits(editIn, lastAppliedTxId + 1, startOpt, recovery);
+          } else {
+            loader.loadEditRecords(editIn, false, lastAppliedTxId + 1,
+                startOpt, recovery);
+          }
         } finally {
           // Update lastAppliedTxId even in case of error, since some ops may
           // have been successfully applied before the error.

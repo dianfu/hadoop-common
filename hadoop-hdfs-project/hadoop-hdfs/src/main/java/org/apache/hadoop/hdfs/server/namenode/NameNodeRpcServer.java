@@ -110,6 +110,11 @@ import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.NamenodeRole;
 import org.apache.hadoop.hdfs.server.common.IncorrectVersionException;
 import org.apache.hadoop.hdfs.server.namenode.NameNode.OperationCategory;
 import org.apache.hadoop.hdfs.server.namenode.metrics.NameNodeMetrics;
+import org.apache.hadoop.hdfs.server.namenode.mirror.journal.protocol.JournalState;
+import org.apache.hadoop.hdfs.server.namenode.mirror.journal.protocol.MirrorJournalProtocolProtos.MirrorJournalProtocolService;
+import org.apache.hadoop.hdfs.server.namenode.mirror.journal.protocol.RequestInfo;
+import org.apache.hadoop.hdfs.server.namenode.mirror.journal.protocolPB.MirrorJournalProtocolPB;
+import org.apache.hadoop.hdfs.server.namenode.mirror.journal.protocolPB.MirrorJournalProtocolServerSideTranslatorPB;
 import org.apache.hadoop.hdfs.server.namenode.web.resources.NamenodeWebHdfsMethods;
 import org.apache.hadoop.hdfs.server.protocol.BlocksWithLocations;
 import org.apache.hadoop.hdfs.server.protocol.DatanodeCommand;
@@ -239,6 +244,12 @@ class NameNodeRpcServer implements NamenodeProtocols {
     BlockingService haPbService = HAServiceProtocolService
         .newReflectiveBlockingService(haServiceProtocolXlator);
     
+    // mirror
+    MirrorJournalProtocolServerSideTranslatorPB mirrorJournalProtocolXlator = 
+        new MirrorJournalProtocolServerSideTranslatorPB(this);
+    BlockingService mirrorJournalPbService = MirrorJournalProtocolService
+        .newReflectiveBlockingService(mirrorJournalProtocolXlator);
+
     WritableRpcEngine.ensureInitialized();
 
     InetSocketAddress serviceRpcAddr = nn.getServiceRpcServerAddress(conf);
@@ -280,7 +291,11 @@ class NameNodeRpcServer implements NamenodeProtocols {
           refreshCallQueueService, serviceRpcServer);
       DFSUtil.addPBProtocol(conf, GetUserMappingsProtocolPB.class, 
           getUserMappingService, serviceRpcServer);
-  
+
+      // mirror
+      DFSUtil.addPBProtocol(conf, MirrorJournalProtocolPB.class, mirrorJournalPbService,
+          serviceRpcServer);
+
       // Update the address with the correct port
       InetSocketAddress listenAddr = serviceRpcServer.getListenerAddress();
       serviceRPCAddress = new InetSocketAddress(
@@ -324,6 +339,10 @@ class NameNodeRpcServer implements NamenodeProtocols {
         refreshCallQueueService, clientRpcServer);
     DFSUtil.addPBProtocol(conf, GetUserMappingsProtocolPB.class, 
         getUserMappingService, clientRpcServer);
+
+    // mirror
+    DFSUtil.addPBProtocol(conf, MirrorJournalProtocolPB.class, mirrorJournalPbService,
+        clientRpcServer);
 
     // set service-level authorization security policy
     if (serviceAuthEnabled =
@@ -1404,6 +1423,32 @@ class NameNodeRpcServer implements NamenodeProtocols {
   @Override
   public void removeXAttr(String src, XAttr xAttr) throws IOException {
     namesystem.removeXAttr(src, xAttr);
+  }
+
+  // MirrorJournalProtocol
+
+  @Override
+  public JournalState getJournalState(boolean resetIPCSerial,
+      NamespaceInfo nsInfo) throws IOException {
+    return namesystem.getJournalState(resetIPCSerial, nsInfo);
+  }
+
+  @Override
+  public void journal(RequestInfo reqInfo, long segmentTxId, long firstTxnId,
+      int numTxns, byte[] records) throws IOException {
+    namesystem.journal(reqInfo, segmentTxId, firstTxnId, numTxns, records);
+  }
+
+  @Override
+  public void startLogSegment(RequestInfo reqInfo, long txid, int layoutVersion)
+      throws IOException {
+    namesystem.startLogSegment(reqInfo, txid, layoutVersion);
+  }
+
+  @Override
+  public void finalizeLogSegment(RequestInfo reqInfo, long startTxId,
+      long endTxId) throws IOException {
+    namesystem.finalizeLogSegment(reqInfo, startTxId, endTxId);
   }
 }
 

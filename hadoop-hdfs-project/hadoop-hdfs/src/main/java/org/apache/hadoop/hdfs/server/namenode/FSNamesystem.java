@@ -207,6 +207,8 @@ import org.apache.hadoop.hdfs.server.namenode.metrics.FSNamesystemMBean;
 import org.apache.hadoop.hdfs.server.namenode.metrics.NameNodeMetrics;
 import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorManager;
 import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorUtil;
+import org.apache.hadoop.hdfs.server.namenode.mirror.journal.protocol.JournalState;
+import org.apache.hadoop.hdfs.server.namenode.mirror.journal.protocol.RequestInfo;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottable;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottable.SnapshotDiffInfo;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
@@ -8142,6 +8144,105 @@ public class FSNamesystem implements Namesystem, FSClusterStats,
         asyncAppender.addAppender(appender);
       }
       logger.addAppender(asyncAppender);        
+    }
+  }
+
+  /**
+   * Check whether the mirror feature is enabled
+   * @throws IOException
+   */
+  protected void checkMirrorEnabled() throws IOException {
+    if (!mirrorEnabled) {
+      throw new IOException("Mirror feature is not enabled");
+    }
+  }
+
+  public void checkMirrorJournalOperation() throws IOException {
+    checkOperation(OperationCategory.JOURNAL);
+    mirrorManager.checkMirrorJournalOperation();
+  }
+
+  public JournalState getJournalState(boolean resetIPCSerial,
+      NamespaceInfo nsInfo) throws IOException {
+    checkMirrorEnabled();
+    //mirror journalling only allwed to active namenode
+    checkMirrorJournalOperation();
+
+    writeLock();
+    try {
+      checkMirrorJournalOperation();
+      return mirrorManager.getJournalState(resetIPCSerial, nsInfo);
+    } finally {
+      writeUnlock();
+    }
+  }
+
+  public void journal(RequestInfo reqInfo, long segmentTxId, long firstTxnId,
+      int numTxns, byte[] records) throws IOException {
+    checkMirrorEnabled();
+    //mirror journalling only allwed to active namenode
+    checkMirrorJournalOperation();
+
+    CacheEntry cacheEntry = RetryCache.waitForCompletion(retryCache);
+    if (cacheEntry != null && cacheEntry.isSuccess()) {
+      return; // Return previous response
+    }
+
+    boolean success = false;
+    writeLock();
+    try {
+      checkMirrorJournalOperation();
+      mirrorManager.journal(reqInfo, segmentTxId, firstTxnId, numTxns, records);
+      success = true;
+    } finally {
+      writeUnlock();
+      RetryCache.setState(cacheEntry, success);
+    }
+  }
+
+  public void startLogSegment(RequestInfo reqInfo, long txid, int layoutVersion)
+      throws IOException {
+    checkMirrorEnabled();
+    //mirror journalling only allwed to active namenode
+    checkMirrorJournalOperation();
+
+    CacheEntry cacheEntry = RetryCache.waitForCompletion(retryCache);
+    if (cacheEntry != null && cacheEntry.isSuccess()) {
+      return; // Return previous response
+    }
+
+    boolean success = false;
+    writeLock();
+    try {
+      checkMirrorJournalOperation();
+      mirrorManager.startLogSegment(reqInfo, txid, layoutVersion);
+      success = true;
+    } finally {
+      writeUnlock();
+      RetryCache.setState(cacheEntry, success);
+    }
+  }
+
+  public void finalizeLogSegment(RequestInfo reqInfo, long startTxId,
+      long endTxId) throws IOException {
+    checkMirrorEnabled();
+    //mirror journalling only allwed to active namenode
+    checkMirrorJournalOperation();
+
+    CacheEntry cacheEntry = RetryCache.waitForCompletion(retryCache);
+    if (cacheEntry != null && cacheEntry.isSuccess()) {
+      return; // Return previous response
+    }
+
+    boolean success = false;
+    writeLock();
+    try {
+      checkMirrorJournalOperation();
+      mirrorManager.finalizeLogSegment(reqInfo, startTxId, endTxId);
+      success = true;
+    } finally {
+      writeUnlock();
+      RetryCache.setState(cacheEntry, success);
     }
   }
 
