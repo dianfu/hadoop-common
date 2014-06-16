@@ -1032,22 +1032,35 @@ public class FSImage implements Closeable {
     storage.attemptRestoreRemovedStorage();
 
     boolean editLogWasOpen = editLog.isSegmentOpen();
+    boolean shouldEndCurrentLogSegment = editLogWasOpen 
+        && (editLog.getCurSegmentTxId() <= editLog.getLastWrittenTxId());
     
-    if (editLogWasOpen) {
-      editLog.endCurrentLogSegment(true);
+    boolean writeEndTxn = MirrorUtil.isMirrorEnabled(conf,
+        DFSUtil.getNamenodeNameServiceId(conf)) ? MirrorUtil
+        .isPrimaryCluster(conf) : true;
+    if (shouldEndCurrentLogSegment) {
+      editLog.endCurrentLogSegment(writeEndTxn);
     }
     long imageTxId = getLastAppliedOrWrittenTxId();
     try {
       saveFSImageInAllDirs(source, nnf, imageTxId, canceler);
       storage.writeAll();
     } finally {
-      if (editLogWasOpen) {
-        editLog.startLogSegmentAndWriteHeaderTxn(imageTxId + 1);
+      if (shouldEndCurrentLogSegment) {
+        long seenTxId;
+        if (writeEndTxn) {
+          editLog.startLogSegmentAndWriteHeaderTxn(imageTxId + 1);
+          seenTxId = imageTxId + 1;
+        } else {
+          editLog.startLogSegment(imageTxId + 1,
+              NameNodeLayoutVersion.CURRENT_LAYOUT_VERSION);
+          seenTxId = imageTxId;
+        }
         // Take this opportunity to note the current transaction.
         // Even if the namespace save was cancelled, this marker
         // is only used to determine what transaction ID is required
         // for startup. So, it doesn't hurt to update it unnecessarily.
-        storage.writeTransactionIdFileToStorage(imageTxId + 1);
+        storage.writeTransactionIdFileToStorage(seenTxId);
       }
     }
   }
@@ -1209,12 +1222,24 @@ public class FSImage implements Closeable {
   }
 
   CheckpointSignature rollEditLog() throws IOException {
-    getEditLog().rollEditLog();
-    // Record this log segment ID in all of the storage directories, so
-    // we won't miss this log segment on a restart if the edits directories
-    // go missing.
-    storage.writeTransactionIdFileToStorage(getEditLog().getCurSegmentTxId());
-    return new CheckpointSignature(this);
+    String nsId = DFSUtil.getNamenodeNameServiceId(conf);
+    boolean writeEndAndBeginTxn = MirrorUtil.isMirrorEnabled(conf, nsId)
+        ? MirrorUtil.isPrimaryCluster(conf) : true;
+    if (getEditLog().rollEditLog(writeEndAndBeginTxn) != -1) {
+      // Record this log segment ID in all of the storage directories, so
+      // we won't miss this log segment on a restart if the edits directories
+      // go missing.
+      long lastReachedTxId = -1;
+      if (writeEndAndBeginTxn) {
+        lastReachedTxId = getEditLog().getCurSegmentTxId();
+      } else {
+        lastReachedTxId = getEditLog().getCurSegmentTxId() - 1;
+      }
+      storage.writeTransactionIdFileToStorage(lastReachedTxId);
+      return new CheckpointSignature(this);
+    } else {
+      return CheckpointSignature.newInvalidCheckpoint();
+    }
   }
 
   /**

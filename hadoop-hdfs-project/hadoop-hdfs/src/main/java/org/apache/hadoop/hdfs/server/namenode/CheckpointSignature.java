@@ -20,6 +20,7 @@ package org.apache.hadoop.hdfs.server.namenode;
 import java.io.IOException;
 
 import org.apache.hadoop.classification.InterfaceAudience;
+import org.apache.hadoop.hdfs.protocol.HdfsConstants;
 import org.apache.hadoop.hdfs.server.common.StorageInfo;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.NodeType;
 
@@ -37,6 +38,17 @@ public class CheckpointSignature extends StorageInfo
   String blockpoolID = "";
   long mostRecentCheckpointTxId;
   long curSegmentTxId;
+
+  public static CheckpointSignature newInvalidCheckpoint() {
+    return new CheckpointSignature();
+  }
+
+  private CheckpointSignature() {
+    super(NodeType.NAME_NODE);
+    blockpoolID = "";
+    mostRecentCheckpointTxId = HdfsConstants.INVALID_TXID;
+    curSegmentTxId = HdfsConstants.INVALID_TXID;
+  }
 
   CheckpointSignature(FSImage fsImage) {
     super(fsImage.getStorage());
@@ -142,6 +154,15 @@ public class CheckpointSignature extends StorageInfo
           + "; " + si.getClusterID() + "; " 
           + si.getBlockPoolID() + ".");
     }
+  }
+
+  public boolean isValidCheckpoint() {
+    if (blockpoolID.equals("")
+        || (mostRecentCheckpointTxId == HdfsConstants.INVALID_TXID)
+        || (curSegmentTxId == HdfsConstants.INVALID_TXID)) {
+      return false;
+    }
+    return true;
   }
 
   //

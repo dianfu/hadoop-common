@@ -286,7 +286,7 @@ public class TestEditLog {
       editLog.logSetReplication("fakefile", (short) 1);
       editLog.logSync();
       
-      editLog.rollEditLog();
+      editLog.rollEditLog(true);
 
       assertExistsInStorageDirs(
           cluster, NameNodeDirType.EDITS,
@@ -1136,7 +1136,7 @@ public class TestEditLog {
     // the specified journal is aborted. It will be brought
     // back into rotation automatically by rollEditLog
     for (int i = 0; i < numrolls; i++) {
-      editlog.rollEditLog();
+      editlog.rollEditLog(true);
       
       editlog.logGenerationStampV2((long) i);
       editlog.logSync();
@@ -1470,7 +1470,7 @@ public class TestEditLog {
             cluster, NameNodeDirType.EDITS,
             NNStorage.getInProgressEditsFileName((i * 3) + 1));
         editLog.logSync();
-        editLog.rollEditLog();
+        editLog.rollEditLog(true);
         assertExistsInStorageDirs(
             cluster, NameNodeDirType.EDITS,
             NNStorage.getFinalizedEditsFileName((i * 3) + 1, (i * 3) + 3));

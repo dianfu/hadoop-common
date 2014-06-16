@@ -1095,7 +1095,8 @@ public class NameNode implements NameNodeStatusMXBean {
             LOG.trace("copying op: " + op);
           }
           if (!segmentOpen) {
-            newSharedEditLog.startLogSegment(op.txid, false);
+            newSharedEditLog.startLogSegment(op.txid,
+                NameNodeLayoutVersion.CURRENT_LAYOUT_VERSION, false);
             segmentOpen = true;
           }
 

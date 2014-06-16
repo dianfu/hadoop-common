@@ -205,6 +205,7 @@ import org.apache.hadoop.hdfs.server.namenode.ha.HAContext;
 import org.apache.hadoop.hdfs.server.namenode.ha.StandbyCheckpointer;
 import org.apache.hadoop.hdfs.server.namenode.metrics.FSNamesystemMBean;
 import org.apache.hadoop.hdfs.server.namenode.metrics.NameNodeMetrics;
+import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorManager;
 import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorUtil;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottable;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottable.SnapshotDiffInfo;
@@ -514,6 +515,10 @@ public class FSNamesystem implements Namesystem, FSClusterStats,
 
   private final NNConf nnConf;
 
+  //Mirror manager, null if mirror feature not enabled
+  private final boolean mirrorEnabled;
+  private MirrorManager mirrorManager = null;
+
   /**
    * Set the last allocated inode id when fsimage or editlog is loaded. 
    */
@@ -718,6 +723,11 @@ public class FSNamesystem implements Namesystem, FSClusterStats,
             "must not be specified if HA is not enabled.");
       }
 
+      this.mirrorEnabled = MirrorUtil.isMirrorEnabled(conf, nameserviceId);
+      LOG.info("Mirror Enabled: " + mirrorEnabled);
+      if(mirrorEnabled) {
+        mirrorManager = new MirrorManager(this, conf);
+      }
       // Get the checksum type from config
       String checksumTypeStr = conf.get(DFS_CHECKSUM_TYPE_KEY, DFS_CHECKSUM_TYPE_DEFAULT);
       DataChecksum.Type checksumType;
@@ -912,7 +922,9 @@ public class FSNamesystem implements Namesystem, FSClusterStats,
       }
       // This will start a new log segment and write to the seen_txid file, so
       // we shouldn't do it when coming up in standby state
-      if (!haEnabled || (haEnabled && startOpt == StartupOption.UPGRADE)) {
+      // Don't open EditLog for active namenode in mirror cluster
+      if ((!haEnabled && (!mirrorEnabled || MirrorUtil.isPrimaryCluster(new Configuration())))
+          || (haEnabled && startOpt == StartupOption.UPGRADE)) {
         fsImage.openEditLogForWrite();
       }
       success = true;
@@ -1000,35 +1012,60 @@ public class FSNamesystem implements Namesystem, FSClusterStats,
     LOG.info("Starting services required for active state");
     writeLock();
     try {
-      FSEditLog editLog = dir.fsImage.getEditLog();
+      if(mirrorEnabled) {
+        // start the mirror manager instead of the original code path
+        mirrorManager.start();
+      }
+      startActiveServicesInternal();
+    } finally {
+      writeUnlock();
+      startingActiveService = false;
+    }
+  }
+  
+  /**
+   * Start services required in active state
+   * @throws IOException
+   */
+  private void startActiveServicesInternal() throws IOException {
+    boolean primary = mirrorEnabled ? mirrorManager.isPrimaryCluster() : true;
+    FSEditLog editLog = dir.fsImage.getEditLog();
+    
+    if (!editLog.isOpenForWrite()) {
+      // During startup, we're already open for write during initialization.
+      editLog.initJournalsForWrite();
+      // May need to recover
+      editLog.recoverUnclosedStreams();
       
-      if (!editLog.isOpenForWrite()) {
-        // During startup, we're already open for write during initialization.
-        editLog.initJournalsForWrite();
-        // May need to recover
-        editLog.recoverUnclosedStreams();
-        
-        LOG.info("Catching up to latest edits from old active before " +
-            "taking over writer role in edits logs");
-        editLogTailer.catchupDuringFailover();
-        
-        blockManager.setPostponeBlocksFromFuture(false);
-        blockManager.getDatanodeManager().markAllDatanodesStale();
-        blockManager.clearQueues();
-        blockManager.processAllPendingDNMessages();
+      LOG.info("Catching up to latest edits from old active before " +
+          "taking over writer role in edits logs");
+      editLogTailer.catchupDuringFailover();
+      
+      boolean postponeBlocks = false;
+      if(!primary) {
+        // For mirror namenode, we need to handle postpone blocks
+        postponeBlocks = true;
+      }
+      blockManager.setPostponeBlocksFromFuture(postponeBlocks);
+      blockManager.getDatanodeManager().markAllDatanodesStale();
+      blockManager.clearQueues();
+      blockManager.processAllPendingDNMessages();
 
-        // Only need to re-process the queue, If not in SafeMode.
-        if (!isInSafeMode()) {
-          LOG.info("Reprocessing replication and invalidation queues");
-          initializeReplQueues();
-        }
+      // Only need to re-process the queue, If not in SafeMode.
+      if (!isInSafeMode()) {
+        LOG.info("Reprocessing replication and invalidation queues");
+        initializeReplQueues();
+      }
 
-        if (LOG.isDebugEnabled()) {
-          LOG.debug("NameNode metadata after re-processing " +
-              "replication and invalidation queues during failover:\n" +
-              metaSaveAsString());
-        }
-        
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("NameNode metadata after re-processing " +
+            "replication and invalidation queues during failover:\n" +
+            metaSaveAsString());
+      }
+
+      if (primary) {
+        // For mirror cluster, all edit logs should be writen from
+        // MirrorManager, so should only open editLog for primary cluster.
         long nextTxId = dir.fsImage.getLastAppliedTxId() + 1;
         LOG.info("Will take over writing edit logs at txnid " + 
             nextTxId);
@@ -1036,33 +1073,31 @@ public class FSNamesystem implements Namesystem, FSClusterStats,
 
         dir.fsImage.editLog.openForWrite();
       }
+    }
+    if (haEnabled) {
+      // Renew all of the leases before becoming active.
+      // This is because, while we were in standby mode,
+      // the leases weren't getting renewed on this NN.
+      // Give them all a fresh start here.
+      leaseManager.renewAllLeases();
+    }
+    leaseManager.startMonitor();
+    startSecretManagerIfNecessary();
 
-      // Enable quota checks.
-      dir.enableQuotaChecks();
-      if (haEnabled) {
-        // Renew all of the leases before becoming active.
-        // This is because, while we were in standby mode,
-        // the leases weren't getting renewed on this NN.
-        // Give them all a fresh start here.
-        leaseManager.renewAllLeases();
-      }
-      leaseManager.startMonitor();
-      startSecretManagerIfNecessary();
+    //ResourceMonitor required only at ActiveNN. See HDFS-2914
+    this.nnrmthread = new Daemon(new NameNodeResourceMonitor());
+    nnrmthread.start();
 
-      //ResourceMonitor required only at ActiveNN. See HDFS-2914
-      this.nnrmthread = new Daemon(new NameNodeResourceMonitor());
-      nnrmthread.start();
-
+    if (primary) {
+      // Mirror Cluster don't need EditLogRoller, the roll of edit log
+      // in mirror cluster is controlled by primary cluster.
       nnEditLogRoller = new Daemon(new NameNodeEditLogRoller(
           editLogRollerThreshold, editLogRollerInterval));
       nnEditLogRoller.start();
-
-      cacheManager.startMonitorThread();
-      blockManager.getDatanodeManager().setShouldSendCachingCommands(true);
-    } finally {
-      writeUnlock();
-      startingActiveService = false;
     }
+
+    cacheManager.startMonitorThread();
+    blockManager.getDatanodeManager().setShouldSendCachingCommands(true);
   }
 
   private boolean inActiveState() {
@@ -1099,36 +1134,48 @@ public class FSNamesystem implements Namesystem, FSClusterStats,
     LOG.info("Stopping services started for active state");
     writeLock();
     try {
-      stopSecretManager();
-      leaseManager.stopMonitor();
-      if (nnrmthread != null) {
-        ((NameNodeResourceMonitor) nnrmthread.getRunnable()).stopMonitor();
-        nnrmthread.interrupt();
+      if(mirrorEnabled) {
+        // stop the mirror manager instead of the original code path
+        mirrorManager.stop();
       }
-      if (nnEditLogRoller != null) {
-        ((NameNodeEditLogRoller)nnEditLogRoller.getRunnable()).stop();
-        nnEditLogRoller.interrupt();
-      }
-      if (dir != null && dir.fsImage != null) {
-        if (dir.fsImage.editLog != null) {
-          dir.fsImage.editLog.close();
-        }
-        // Update the fsimage with the last txid that we wrote
-        // so that the tailer starts from the right spot.
-        dir.fsImage.updateLastAppliedTxIdFromWritten();
-      }
-      if (cacheManager != null) {
-        cacheManager.stopMonitorThread();
-        cacheManager.clearDirectiveStats();
-      }
-      blockManager.getDatanodeManager().clearPendingCachingCommands();
-      blockManager.getDatanodeManager().setShouldSendCachingCommands(false);
-      // Don't want to keep replication queues when not in Active.
-      blockManager.clearQueues();
-      initializedReplQueues = false;
+      stopActiveServicesInternal();
     } finally {
       writeUnlock();
     }
+  }
+  
+  /** 
+   * Stop services required in active state
+   * @throws InterruptedException
+   */
+  void stopActiveServicesInternal() {
+    stopSecretManager();
+    leaseManager.stopMonitor();
+    if (nnrmthread != null) {
+      ((NameNodeResourceMonitor) nnrmthread.getRunnable()).stopMonitor();
+      nnrmthread.interrupt();
+    }
+    if (nnEditLogRoller != null) {
+      ((NameNodeEditLogRoller)nnEditLogRoller.getRunnable()).stop();
+      nnEditLogRoller.interrupt();
+    }
+    if (dir != null && dir.fsImage != null) {
+      if (dir.fsImage.editLog != null) {
+        dir.fsImage.editLog.close();
+      }
+      // Update the fsimage with the last txid that we wrote
+      // so that the tailer starts from the right spot.
+      dir.fsImage.updateLastAppliedTxIdFromWritten();
+    }
+    if (cacheManager != null) {
+      cacheManager.stopMonitorThread();
+      cacheManager.clearDirectiveStats();
+    }
+    blockManager.getDatanodeManager().clearPendingCachingCommands();
+    blockManager.getDatanodeManager().setShouldSendCachingCommands(false);
+    // Don't want to keep replication queues when not in Active.
+    blockManager.clearQueues();
+    initializedReplQueues = false;
   }
   
   /**
@@ -8096,6 +8143,26 @@ public class FSNamesystem implements Namesystem, FSClusterStats,
       }
       logger.addAppender(asyncAppender);        
     }
+  }
+
+  public void startPrimaryServices() throws IOException {
+    mirrorManager.startPrimaryServices();
+  }
+
+  public void stopPrimaryServices() throws IOException {
+    mirrorManager.stopPrimaryServices();
+  }
+
+  public void startMirrorServices() throws IOException{
+    mirrorManager.startMirrorServices();
+  }
+
+  public void prepareToStopMirrorServices() throws IOException {
+    mirrorManager.prepareToStopMirrorServices();
+  }
+
+  public void stopMirrorServices() throws IOException {
+    mirrorManager.stopMirrorServices();
   }
 }
 

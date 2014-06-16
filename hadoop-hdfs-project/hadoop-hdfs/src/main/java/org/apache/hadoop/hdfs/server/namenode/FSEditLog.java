@@ -39,6 +39,7 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.fs.XAttr;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
+import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.protocol.CacheDirectiveInfo;
 import org.apache.hadoop.hdfs.protocol.CachePoolInfo;
 import org.apache.hadoop.hdfs.protocol.HdfsConstants;
@@ -90,6 +91,7 @@ import org.apache.hadoop.hdfs.server.namenode.FSEditLogOp.UpdateMasterKeyOp;
 import org.apache.hadoop.hdfs.server.namenode.FSEditLogOp.RollingUpgradeOp;
 import org.apache.hadoop.hdfs.server.namenode.JournalSet.JournalAndStream;
 import org.apache.hadoop.hdfs.server.namenode.metrics.NameNodeMetrics;
+import org.apache.hadoop.hdfs.server.namenode.mirror.MirrorUtil;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeRegistration;
 import org.apache.hadoop.hdfs.server.protocol.NamespaceInfo;
 import org.apache.hadoop.hdfs.server.protocol.RemoteEditLogManifest;
@@ -188,6 +190,8 @@ public class FSEditLog implements LogsPurgeable {
    */
   private final List<URI> sharedEditsDirs;
 
+  private boolean isMirrorCluster;
+
   private static class TransactionId {
     public long txid;
 
@@ -224,6 +228,10 @@ public class FSEditLog implements LogsPurgeable {
     this.editsDirs = Lists.newArrayList(editsDirs);
 
     this.sharedEditsDirs = FSNamesystem.getSharedEditsDirs(conf);
+
+    this.isMirrorCluster = MirrorUtil.isMirrorEnabled(conf,
+        DFSUtil.getNamenodeNameServiceId(conf)) ? !MirrorUtil
+        .isPrimaryCluster(conf) : false;
   }
   
   public synchronized void initJournalsForWrite() {
@@ -344,7 +352,8 @@ public class FSEditLog implements LogsPurgeable {
       if (state == State.IN_SEGMENT) {
         assert editLogStream != null;
         waitForSyncToFinish();
-        endCurrentLogSegment(true);
+        boolean writeEndTxn = !isMirrorCluster;
+        endCurrentLogSegment(writeEndTxn);
       }
     } finally {
       if (journalSet != null && !journalSet.isEmpty()) {
@@ -1108,14 +1117,24 @@ public class FSEditLog implements LogsPurgeable {
   /**
    * Finalizes the current edit log and opens a new log segment.
    * @return the transaction id of the BEGIN_LOG_SEGMENT transaction
-   * in the new log.
+   * in the new log or -1 if the edit log doesn't get rolled.
    */
-  synchronized long rollEditLog() throws IOException {
+  synchronized long rollEditLog(boolean writeEndAndBeginTxn) throws IOException {
     LOG.info("Rolling edit logs");
-    endCurrentLogSegment(true);
+    if (!writeEndAndBeginTxn
+        && (curSegmentTxId > getLastWrittenTxId()
+            || (curSegmentTxId == HdfsConstants.INVALID_TXID))) {
+      // If there is no edit log in the current segment, just return.
+      return -1;
+    }
+    endCurrentLogSegment(writeEndAndBeginTxn);
     
     long nextTxId = getLastWrittenTxId() + 1;
-    startLogSegmentAndWriteHeaderTxn(nextTxId);
+    if (writeEndAndBeginTxn) {
+      startLogSegmentAndWriteHeaderTxn(nextTxId);
+    } else {
+      startLogSegment(nextTxId, NameNodeLayoutVersion.CURRENT_LAYOUT_VERSION);
+    }
     
     assert curSegmentTxId == nextTxId;
     return nextTxId;
@@ -1124,7 +1143,7 @@ public class FSEditLog implements LogsPurgeable {
   /**
    * Remote namenode just has started a log segment, start log segment locally.
    */
-  public synchronized void startLogSegment(long txid, 
+  public synchronized void startLogSegment(long txid, int layoutVersion,
       boolean abortCurrentLogSegment) throws IOException {
     LOG.info("Started a new log segment at txid " + txid);
     if (isSegmentOpen()) {
@@ -1147,14 +1166,15 @@ public class FSEditLog implements LogsPurgeable {
       }
     }
     setNextTxId(txid);
-    startLogSegment(txid);
+    startLogSegment(txid, layoutVersion);
   }
   
   /**
    * Start writing to the log segment with the given txid.
    * Transitions from BETWEEN_LOG_SEGMENTS state to IN_LOG_SEGMENT state. 
    */
-  private void startLogSegment(final long segmentTxId) throws IOException {
+  public void startLogSegment(final long segmentTxId, final int layoutVersion)
+      throws IOException {
     assert Thread.holdsLock(this);
 
     LOG.info("Starting log segment at " + segmentTxId);
@@ -1162,7 +1182,7 @@ public class FSEditLog implements LogsPurgeable {
         "Bad txid: %s", segmentTxId);
     Preconditions.checkState(state == State.BETWEEN_LOG_SEGMENTS,
         "Bad state: %s", state);
-    Preconditions.checkState(segmentTxId > curSegmentTxId,
+    Preconditions.checkState(segmentTxId >= curSegmentTxId,
         "Cannot start writing to log segment " + segmentTxId +
         " when previous log segment started at " + curSegmentTxId);
     Preconditions.checkArgument(segmentTxId == txid + 1,
@@ -1177,7 +1197,7 @@ public class FSEditLog implements LogsPurgeable {
     
     try {
       editLogStream = journalSet.startLogSegment(segmentTxId,
-          NameNodeLayoutVersion.CURRENT_LAYOUT_VERSION);
+          layoutVersion);
     } catch (IOException ex) {
       throw new IOException("Unable to start log segment " +
           segmentTxId + ": too few journals successfully started.", ex);
@@ -1189,7 +1209,7 @@ public class FSEditLog implements LogsPurgeable {
 
   synchronized void startLogSegmentAndWriteHeaderTxn(final long segmentTxId
       ) throws IOException {
-    startLogSegment(segmentTxId);
+    startLogSegment(segmentTxId, NameNodeLayoutVersion.CURRENT_LAYOUT_VERSION);
 
     logEdit(LogSegmentOp.getInstance(cache.get(),
         FSEditLogOpCodes.OP_START_LOG_SEGMENT));
