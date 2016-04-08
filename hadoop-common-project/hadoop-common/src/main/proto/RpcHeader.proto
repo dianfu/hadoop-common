@@ -27,6 +27,8 @@ option java_outer_classname = "RpcHeaderProtos";
 option java_generate_equals_and_hash = true;
 package hadoop.common;
 
+import "Security.proto";
+
 /**
  * This is the rpc request header. It is sent with every rpc call.
  * 
@@ -179,4 +181,5 @@ message RpcSaslProto {
   required SaslState state = 2;
   optional bytes token     = 3;
   repeated SaslAuth auths  = 4;
+  repeated CipherOptionProto cipherOption = 5;
 }

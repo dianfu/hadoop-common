@@ -117,6 +117,10 @@ public class CryptoOutputStream extends FilterOutputStream implements
   public OutputStream getWrappedStream() {
     return out;
   }
+
+  public void setWrappedStream(OutputStream out) {
+    this.out = out;
+  }
   
   /**
    * Encryption is buffer based.

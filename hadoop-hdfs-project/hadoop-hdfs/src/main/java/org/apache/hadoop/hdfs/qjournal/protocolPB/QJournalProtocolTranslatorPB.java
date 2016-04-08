@@ -68,6 +68,7 @@ import org.apache.hadoop.ipc.RpcClientUtil;
 
 import com.google.protobuf.RpcController;
 import com.google.protobuf.ServiceException;
+import org.apache.hadoop.protocolPB.CommonPBHelper;
 
 /**
  * This class is the client side translator to translate the requests made on
@@ -162,7 +163,7 @@ public class QJournalProtocolTranslatorPB implements ProtocolMetaInterface,
         .setSegmentTxnId(segmentTxId)
         .setFirstTxnId(firstTxnId)
         .setNumTxns(numTxns)
-        .setRecords(PBHelperClient.getByteString(records))
+        .setRecords(CommonPBHelper.getByteString(records))
         .build();
     try {
       rpcProxy.journal(NULL_CONTROLLER, req);
