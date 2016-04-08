@@ -24,7 +24,6 @@ import static org.apache.hadoop.ipc.RpcConstants.CONNECTION_CONTEXT_CALL_ID;
 import static org.apache.hadoop.ipc.RpcConstants.CURRENT_VERSION;
 import static org.apache.hadoop.ipc.RpcConstants.HEADER_LEN_AFTER_HRPC_PART;
 import static org.apache.hadoop.ipc.RpcConstants.PING_CALL_ID;
-import static org.apache.hadoop.security.SaslUtil.*;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -1700,7 +1699,7 @@ public abstract class Server {
       if (saslServer.isComplete() &&
           SaslUtil.isNegotiatedQopPrivacy(saslServer)) {
         // Negotiate a cipher option
-        cipherOption = negotiateCipherOption(conf, cipherOptions);
+        cipherOption = SaslUtil.negotiateCipherOption(conf, cipherOptions);
         if (LOG.isDebugEnabled()) {
           if (cipherOption == null) {
             // No cipher suite is negotiated
@@ -1722,7 +1721,7 @@ public abstract class Server {
       if (cipherOption != null) {
         saslCodec = new SaslCryptoCodec(conf, cipherOption, true);
       }
-      cipherOption = wrap(cipherOption, saslServer);
+      cipherOption = SaslUtil.wrap(cipherOption, saslServer);
       return buildSaslResponse(
           saslServer.isComplete() ? SaslState.SUCCESS : SaslState.CHALLENGE,
           saslToken, cipherOption);
@@ -2191,7 +2190,7 @@ public abstract class Server {
     }
 
     /**
-     * Process an RPC Request
+     * Process an RPC Request 
      *   - the connection headers and context must have been already read.
      *   - Based on the rpcKind, decode the rpcRequest.
      *   - A successfully decoded RpcCall will be deposited in RPC-Q and
@@ -2206,15 +2205,15 @@ public abstract class Server {
     private void processRpcRequest(RpcRequestHeaderProto header,
         DataInputStream dis) throws WrappedRpcServerException,
         InterruptedException {
-      Class<? extends Writable> rpcRequestClass =
+      Class<? extends Writable> rpcRequestClass = 
           getRpcRequestWrapper(header.getRpcKind());
       if (rpcRequestClass == null) {
         LOG.warn("Unknown rpc kind "  + header.getRpcKind() +
             " from client " + getHostAddress());
-        final String err = "Unknown rpc kind in rpc header"  +
+        final String err = "Unknown rpc kind in rpc header"  + 
             header.getRpcKind();
         throw new WrappedRpcServerException(
-            RpcErrorCodeProto.FATAL_INVALID_RPC_HEADER, err);
+            RpcErrorCodeProto.FATAL_INVALID_RPC_HEADER, err);  
       }
       Writable rpcRequest;
       try { //Read the rpc request
@@ -2228,7 +2227,7 @@ public abstract class Server {
         throw new WrappedRpcServerException(
             RpcErrorCodeProto.FATAL_DESERIALIZING_REQUEST, err);
       }
-
+       
       TraceScope traceScope = null;
       if (header.hasTraceInfo()) {
         if (tracer != null) {

@@ -19,12 +19,24 @@
 package org.apache.hadoop.security;
 
 import static org.apache.hadoop.fs.CommonConfigurationKeys.HADOOP_SECURITY_CRYPTO_CIPHER_SUITE_KEY;
-import static org.apache.hadoop.security.SaslUtil.*;
 
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.FilterInputStream;
+import java.io.FilterOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 import javax.security.auth.callback.Callback;
 import javax.security.auth.callback.CallbackHandler;
@@ -45,7 +57,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.crypto.*;
+import org.apache.hadoop.crypto.CipherOption;
 import org.apache.hadoop.fs.GlobPattern;
 import org.apache.hadoop.ipc.ProtobufRpcEngine.RpcRequestMessageWrapper;
 import org.apache.hadoop.ipc.ProtobufRpcEngine.RpcResponseMessageWrapper;
@@ -426,7 +438,7 @@ public class SaslRpcClient {
           }
           byte[] responseToken = saslEvaluateToken(saslMessage, false);
           List<CipherOption> cipherOptions = null;
-          if (requestedQopContainsPrivacy(saslProperties)) {
+          if (SaslUtil.requestedQopContainsPrivacy(saslProperties)) {
             cipherOptions = SaslUtil.getCipherOptions(conf);
           }
           response = createSaslReply(SaslState.RESPONSE, responseToken, cipherOptions);
@@ -508,9 +520,9 @@ public class SaslRpcClient {
       option = options.get(0);
     }
     if (saslClient.isComplete() &&
-        isNegotiatedQopPrivacy(saslClient)) {
+        SaslUtil.isNegotiatedQopPrivacy(saslClient)) {
       // Unwrap the negotiated cipher option
-      cipherOption = unwrap(option, saslClient);
+      cipherOption = SaslUtil.unwrap(option, saslClient);
       if (LOG.isDebugEnabled()) {
         if (cipherOption == null) {
           // No cipher suite is negotiated
