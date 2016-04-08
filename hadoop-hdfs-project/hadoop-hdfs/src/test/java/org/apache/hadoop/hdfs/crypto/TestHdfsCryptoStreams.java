@@ -22,7 +22,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.crypto.CryptoCodec;
+import org.apache.hadoop.crypto.CryptoStreamUtils;
 import org.apache.hadoop.crypto.CryptoStreamsTestBase;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -36,6 +36,8 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import com.intel.chimera.cipher.Cipher;
+
 public class TestHdfsCryptoStreams extends CryptoStreamsTestBase {
   private static MiniDFSCluster dfsCluster;
   private static FileSystem fs;
@@ -43,13 +45,15 @@ public class TestHdfsCryptoStreams extends CryptoStreamsTestBase {
   private static Path path;
   private static Path file;
 
+  private static Cipher cipher;
+
   @BeforeClass
   public static void init() throws Exception {
     Configuration conf = new HdfsConfiguration();
     dfsCluster = new MiniDFSCluster.Builder(conf).build();
     dfsCluster.waitClusterUp();
     fs = dfsCluster.getFileSystem();
-    codec = CryptoCodec.getInstance(conf);
+    cipher = CryptoStreamUtils.getCipherInstance(conf);
   }
 
   @AfterClass
@@ -78,14 +82,14 @@ public class TestHdfsCryptoStreams extends CryptoStreamsTestBase {
   @Override
   protected OutputStream getOutputStream(int bufferSize, byte[] key, byte[] iv)
       throws IOException {
-    return new CryptoFSDataOutputStream(fs.create(file), codec, bufferSize,
+    return new CryptoFSDataOutputStream(fs.create(file), cipher, bufferSize,
         key, iv);
   }
 
   @Override
   protected InputStream getInputStream(int bufferSize, byte[] key, byte[] iv)
       throws IOException {
-    return new CryptoFSDataInputStream(fs.open(file), codec, bufferSize, key,
+    return new CryptoFSDataInputStream(fs.open(file), cipher, bufferSize, key,
         iv);
   }
 }

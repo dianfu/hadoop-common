@@ -17,23 +17,47 @@
  */
 package org.apache.hadoop.crypto;
 
+import static com.intel.chimera.conf.ConfigurationKeys.CHIMERA_CRYPTO_BUFFER_SIZE_KEY;
+import static com.intel.chimera.conf.ConfigurationKeys.CHIMERA_CRYPTO_CIPHER_CLASSES_KEY;
+import static com.intel.chimera.conf.ConfigurationKeys.CHIMERA_CRYPTO_CIPHER_TRANSFORMATION_KEY;
+import static com.intel.chimera.conf.ConfigurationKeys.CHIMERA_CRYPTO_JCE_PROVIDER_KEY;
+import static com.intel.chimera.conf.ConfigurationKeys.CHIMERA_RANDOM_DEVICE_FILE_PATH_KEY;
+import static com.intel.chimera.conf.ConfigurationKeys.CHIMERA_SECURE_RANDOM_IMPL_KEY;
+
 import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_SECURITY_CRYPTO_BUFFER_SIZE_DEFAULT;
 import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_SECURITY_CRYPTO_BUFFER_SIZE_KEY;
+import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_SECURITY_CRYPTO_CIPHER_SUITE_DEFAULT;
+import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_SECURITY_CRYPTO_CIPHER_SUITE_KEY;
+import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_SECURITY_CRYPTO_CIPHER_CLASSES_KEY;
+import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_SECURITY_CRYPTO_CODEC_CLASSES_AES_CTR_NOPADDING_KEY;
+import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_SECURITY_CRYPTO_CODEC_CLASSES_AES_CTR_NOPADDING_DEFAULT;
+import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_SECURITY_CRYPTO_CODEC_CLASSES_KEY_PREFIX;
+import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_SECURITY_CRYPTO_JCE_PROVIDER_KEY;
+import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_SECURITY_SECURE_RANDOM_DEVICE_FILE_PATH_DEFAULT;
+import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_SECURITY_SECURE_RANDOM_DEVICE_FILE_PATH_KEY;
+import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_SECURITY_SECURE_RANDOM_IMPL_KEY;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.security.GeneralSecurityException;
+import java.util.Properties;
 
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.crypto.random.OsSecureRandom;
 import org.apache.hadoop.fs.Seekable;
 
 import com.google.common.base.Preconditions;
+import com.intel.chimera.cipher.Cipher;
+import com.intel.chimera.cipher.CipherFactory;
+import com.intel.chimera.cipher.CipherTransformation;
+import com.intel.chimera.random.OpensslSecureRandom;
 
 @InterfaceAudience.Private
 public class CryptoStreamUtils {
   private static final int MIN_BUFFER_SIZE = 512;
-  
+
   /** Forcibly free the direct buffer. */
   public static void freeDB(ByteBuffer buffer) {
     if (buffer instanceof sun.nio.ch.DirectBuffer) {
@@ -73,5 +97,101 @@ public class CryptoStreamUtils {
       return ((Seekable) in).getPos();
     }
     return 0;
+  }
+
+  public static Cipher getCipherInstance(Configuration conf)
+      throws IOException {
+    try {
+      return CipherFactory.getInstance(CryptoStreamUtils.toChimeraConf(conf));
+    } catch (GeneralSecurityException e) {
+      throw new IOException(e);
+    }
+  }
+
+  public static Cipher getCipherInstance(Configuration conf,
+      CipherSuite cipherSuite) throws IOException {
+    try {
+      return CipherFactory.getInstance(toChimeraConf(conf),
+          toChimeraCipherTransformation(cipherSuite));
+    } catch (GeneralSecurityException e) {
+      throw new IOException(e);
+    }
+  }
+
+  private static CipherTransformation toChimeraCipherTransformation(
+      CipherSuite suite) throws IOException {
+    switch (suite) {
+    case AES_CTR_NOPADDING:
+      return CipherTransformation.AES_CTR_NOPADDING;
+    default:
+      throw new IOException("Suite " + suite + " is not supported.");
+    }
+  }
+
+  /**
+   * Get Chimera configurations from Hadoop configurations.
+   */
+  private static Properties toChimeraConf(Configuration conf) {
+    Properties props = new Properties();
+
+    // Set cipher transformation
+    String suiteName = conf.get(HADOOP_SECURITY_CRYPTO_CIPHER_SUITE_KEY,
+        HADOOP_SECURITY_CRYPTO_CIPHER_SUITE_DEFAULT);
+    props.setProperty(CHIMERA_CRYPTO_CIPHER_TRANSFORMATION_KEY, suiteName);
+
+    // Set cipher classes
+    String cipherString = conf.get(HADOOP_SECURITY_CRYPTO_CIPHER_CLASSES_KEY);
+    if (cipherString == null) {
+      CipherSuite cipherSuite = CipherSuite.convert(suiteName);
+      String configName = HADOOP_SECURITY_CRYPTO_CODEC_CLASSES_KEY_PREFIX +
+          cipherSuite.getConfigSuffix();
+      if (configName.equals(
+          HADOOP_SECURITY_CRYPTO_CODEC_CLASSES_AES_CTR_NOPADDING_KEY)) {
+        cipherString = conf.get(configName,
+            HADOOP_SECURITY_CRYPTO_CODEC_CLASSES_AES_CTR_NOPADDING_DEFAULT);
+      } else {
+        cipherString = conf.get(configName);
+      }
+      if (cipherString != null) {
+        cipherString = cipherString.replaceAll(
+            OpensslAesCtrCryptoCodec.class.getCanonicalName(),
+            com.intel.chimera.cipher.OpensslCipher.class.getCanonicalName());
+        cipherString = cipherString.replaceAll(
+            JceAesCtrCryptoCodec.class.getCanonicalName(),
+            com.intel.chimera.cipher.JceCipher.class.getCanonicalName());
+      }
+    }
+    props.setProperty(CHIMERA_CRYPTO_CIPHER_CLASSES_KEY, cipherString);
+
+    // Set JCE provider
+    String jceProvider = conf.get(HADOOP_SECURITY_CRYPTO_JCE_PROVIDER_KEY);
+    if (jceProvider != null) {
+      props.setProperty(CHIMERA_CRYPTO_JCE_PROVIDER_KEY, jceProvider);
+    }
+
+    // Set crypto buffer size
+    props.setProperty(CHIMERA_CRYPTO_BUFFER_SIZE_KEY,
+        String.valueOf(getBufferSize(conf)));
+
+    // Set random class
+    String randomString = conf.get(HADOOP_SECURITY_SECURE_RANDOM_IMPL_KEY);
+    if (randomString != null) {
+      randomString = randomString.replaceAll(
+          OsSecureRandom.class.getCanonicalName(),
+          com.intel.chimera.random.OsSecureRandom.class.getCanonicalName());
+      randomString = randomString.replaceAll(
+          OpensslSecureRandom.class.getCanonicalName(),
+          com.intel.chimera.random.OpensslSecureRandom.class
+            .getCanonicalName());
+      props.setProperty(CHIMERA_SECURE_RANDOM_IMPL_KEY, randomString);
+    }
+
+    // Set random dev file path
+    String randomDevPath = conf.get(
+        HADOOP_SECURITY_SECURE_RANDOM_DEVICE_FILE_PATH_KEY,
+        HADOOP_SECURITY_SECURE_RANDOM_DEVICE_FILE_PATH_DEFAULT);
+    props.setProperty(CHIMERA_RANDOM_DEVICE_FILE_PATH_KEY, randomDevPath);
+
+    return props;
   }
 }

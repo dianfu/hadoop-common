@@ -57,10 +57,10 @@ import org.apache.hadoop.HadoopIllegalArgumentException;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.crypto.CipherSuite;
-import org.apache.hadoop.crypto.CryptoCodec;
-import org.apache.hadoop.crypto.CryptoInputStream;
-import org.apache.hadoop.crypto.CryptoOutputStream;
+import org.apache.hadoop.crypto.CryptoFSInputStream;
+import org.apache.hadoop.crypto.CryptoFSOutputStream;
 import org.apache.hadoop.crypto.CryptoProtocolVersion;
+import org.apache.hadoop.crypto.CryptoStreamUtils;
 import org.apache.hadoop.crypto.key.KeyProvider;
 import org.apache.hadoop.crypto.key.KeyProvider.KeyVersion;
 import org.apache.hadoop.crypto.key.KeyProviderCryptoExtension;
@@ -178,6 +178,7 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.net.InetAddresses;
+import com.intel.chimera.cipher.Cipher;
 
 /********************************************************
  * DFSClient can connect to a Hadoop Filesystem and
@@ -915,24 +916,24 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
   }
 
   /**
-   * Obtain a CryptoCodec based on the CipherSuite set in a FileEncryptionInfo
-   * and the available CryptoCodecs configured in the Configuration.
+   * Obtain a Cipher based on the CipherSuite set in a FileEncryptionInfo
+   * and the available Cipher configured in the Configuration.
    *
    * @param conf   Configuration
    * @param feInfo FileEncryptionInfo
-   * @return CryptoCodec
-   * @throws IOException if no suitable CryptoCodec for the CipherSuite is
+   * @return Cipher
+   * @throws IOException if no suitable Cipher for the CipherSuite is
    *                     available.
    */
-  private static CryptoCodec getCryptoCodec(Configuration conf,
+  private static Cipher getCipher(Configuration conf,
       FileEncryptionInfo feInfo) throws IOException {
     final CipherSuite suite = feInfo.getCipherSuite();
     if (suite.equals(CipherSuite.UNKNOWN)) {
       throw new IOException("NameNode specified unknown CipherSuite with ID "
           + suite.getUnknownValue() + ", cannot instantiate CryptoCodec.");
     }
-    final CryptoCodec codec = CryptoCodec.getInstance(conf, suite);
-    if (codec == null) {
+    final Cipher cipher = CryptoStreamUtils.getCipherInstance(conf, suite);
+    if (cipher == null) {
       throw new UnknownCipherSuiteException(
           "No configuration found for the cipher suite "
               + suite.getConfigSuffix() + " prefixed with "
@@ -941,11 +942,11 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
               + "hadoop.security.crypto.codec.classes.EXAMPLECIPHERSUITE "
               + "at core-default.xml for details.");
     }
-    return codec;
+    return cipher;
   }
 
   /**
-   * Wraps the stream in a CryptoInputStream if the underlying file is
+   * Wraps the stream in a CryptoFSInputStream if the underlying file is
    * encrypted.
    */
   public HdfsDataInputStream createWrappedInputStream(DFSInputStream dfsis)
@@ -955,11 +956,11 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
       // File is encrypted, wrap the stream in a crypto stream.
       // Currently only one version, so no special logic based on the version #
       getCryptoProtocolVersion(feInfo);
-      final CryptoCodec codec = getCryptoCodec(conf, feInfo);
+      final Cipher cipher = getCipher(conf, feInfo);
       final KeyVersion decrypted = decryptEncryptedDataEncryptionKey(feInfo);
-      final CryptoInputStream cryptoIn =
-          new CryptoInputStream(dfsis, codec, decrypted.getMaterial(),
-              feInfo.getIV());
+      final CryptoFSInputStream cryptoIn =
+          new CryptoFSInputStream(dfsis, cipher, decrypted.getMaterial(),
+              feInfo.getIV(), conf);
       return new HdfsDataInputStream(cryptoIn);
     } else {
       // No FileEncryptionInfo so no encryption.
@@ -968,7 +969,7 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
   }
 
   /**
-   * Wraps the stream in a CryptoOutputStream if the underlying file is
+   * Wraps the stream in a CryptoFSOutputStream if the underlying file is
    * encrypted.
    */
   public HdfsDataOutputStream createWrappedOutputStream(DFSOutputStream dfsos,
@@ -977,7 +978,7 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
   }
 
   /**
-   * Wraps the stream in a CryptoOutputStream if the underlying file is
+   * Wraps the stream in a CryptoFSOutputStream if the underlying file is
    * encrypted.
    */
   public HdfsDataOutputStream createWrappedOutputStream(DFSOutputStream dfsos,
@@ -987,11 +988,11 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
       // File is encrypted, wrap the stream in a crypto stream.
       // Currently only one version, so no special logic based on the version #
       getCryptoProtocolVersion(feInfo);
-      final CryptoCodec codec = getCryptoCodec(conf, feInfo);
+      final Cipher cipher = getCipher(conf, feInfo);
       KeyVersion decrypted = decryptEncryptedDataEncryptionKey(feInfo);
-      final CryptoOutputStream cryptoOut =
-          new CryptoOutputStream(dfsos, codec,
-              decrypted.getMaterial(), feInfo.getIV(), startPos);
+      final CryptoFSOutputStream cryptoOut =
+          new CryptoFSOutputStream(dfsos, cipher,
+              decrypted.getMaterial(), feInfo.getIV(), startPos, conf);
       return new HdfsDataOutputStream(cryptoOut, statistics, startPos);
     } else {
       // No FileEncryptionInfo present so no encryption.

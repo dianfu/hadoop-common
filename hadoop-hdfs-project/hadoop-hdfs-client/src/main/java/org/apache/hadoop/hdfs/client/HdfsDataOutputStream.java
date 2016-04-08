@@ -23,7 +23,7 @@ import java.util.EnumSet;
 
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
-import org.apache.hadoop.crypto.CryptoOutputStream;
+import org.apache.hadoop.crypto.CryptoFSOutputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.hdfs.DFSOutputStream;
@@ -46,15 +46,15 @@ public class HdfsDataOutputStream extends FSDataOutputStream {
     this(out, stats, 0L);
   }
 
-  public HdfsDataOutputStream(CryptoOutputStream out,
+  public HdfsDataOutputStream(CryptoFSOutputStream out,
       FileSystem.Statistics stats, long startPosition) throws IOException {
     super(out, stats, startPosition);
     Preconditions.checkArgument(
         out.getWrappedStream() instanceof DFSOutputStream,
-        "CryptoOutputStream should wrap a DFSOutputStream");
+        "CryptoFSOutputStream should wrap a DFSOutputStream");
   }
 
-  public HdfsDataOutputStream(CryptoOutputStream out,
+  public HdfsDataOutputStream(CryptoFSOutputStream out,
       FileSystem.Statistics stats) throws IOException {
     this(out, stats, 0L);
   }
@@ -73,8 +73,8 @@ public class HdfsDataOutputStream extends FSDataOutputStream {
    */
   public synchronized int getCurrentBlockReplication() throws IOException {
     OutputStream wrappedStream = getWrappedStream();
-    if (wrappedStream instanceof CryptoOutputStream) {
-      wrappedStream = ((CryptoOutputStream) wrappedStream).getWrappedStream();
+    if (wrappedStream instanceof CryptoFSOutputStream) {
+      wrappedStream = ((CryptoFSOutputStream) wrappedStream).getWrappedStream();
     }
     return ((DFSOutputStream) wrappedStream).getCurrentBlockReplication();
   }
@@ -89,9 +89,9 @@ public class HdfsDataOutputStream extends FSDataOutputStream {
    */
   public void hsync(EnumSet<SyncFlag> syncFlags) throws IOException {
     OutputStream wrappedStream = getWrappedStream();
-    if (wrappedStream instanceof CryptoOutputStream) {
+    if (wrappedStream instanceof CryptoFSOutputStream) {
       wrappedStream.flush();
-      wrappedStream = ((CryptoOutputStream) wrappedStream).getWrappedStream();
+      wrappedStream = ((CryptoFSOutputStream) wrappedStream).getWrappedStream();
     }
     ((DFSOutputStream) wrappedStream).hsync(syncFlags);
   }
