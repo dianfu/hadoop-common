@@ -23,7 +23,7 @@ import java.io.InputStream;
 import org.apache.hadoop.fs.PositionedReadable;
 import org.apache.hadoop.fs.Seekable;
 
-import com.intel.chimera.input.StreamInput;
+import com.intel.chimera.stream.input.StreamInput;
 
 public class PositionedStreamInput extends StreamInput {
   private InputStream in;

@@ -20,6 +20,7 @@ package org.apache.hadoop.crypto;
 import java.io.IOException;
 import java.io.OutputStream;
 
+import com.intel.chimera.stream.CTRCryptoOutputStream;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
@@ -27,11 +28,10 @@ import org.apache.hadoop.fs.CanSetDropBehind;
 import org.apache.hadoop.fs.Syncable;
 
 import com.intel.chimera.cipher.Cipher;
-import com.intel.chimera.stream.PositionedCryptoOutputStream;
 
 @InterfaceAudience.Private
 @InterfaceStability.Evolving
-public class CryptoFSOutputStream extends PositionedCryptoOutputStream implements
+public class CryptoFSOutputStream extends CTRCryptoOutputStream implements
     Syncable, CanSetDropBehind {
   private OutputStream out;
 

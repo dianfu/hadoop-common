@@ -17,12 +17,11 @@
  */
 package org.apache.hadoop.crypto;
 
-import static com.intel.chimera.conf.ConfigurationKeys.CHIMERA_CRYPTO_BUFFER_SIZE_KEY;
+import static com.intel.chimera.conf.ConfigurationKeys.CHIMERA_CRYPTO_STREAM_BUFFER_SIZE_KEY;
 import static com.intel.chimera.conf.ConfigurationKeys.CHIMERA_CRYPTO_CIPHER_CLASSES_KEY;
-import static com.intel.chimera.conf.ConfigurationKeys.CHIMERA_CRYPTO_CIPHER_TRANSFORMATION_KEY;
-import static com.intel.chimera.conf.ConfigurationKeys.CHIMERA_CRYPTO_JCE_PROVIDER_KEY;
-import static com.intel.chimera.conf.ConfigurationKeys.CHIMERA_RANDOM_DEVICE_FILE_PATH_KEY;
-import static com.intel.chimera.conf.ConfigurationKeys.CHIMERA_SECURE_RANDOM_IMPL_KEY;
+import static com.intel.chimera.conf.ConfigurationKeys.CHIMERA_CRYPTO_CIPHER_JCE_PROVIDER_KEY;
+import static com.intel.chimera.conf.ConfigurationKeys.CHIMERA_CRYPTO_SECURE_RANDOM_DEVICE_FILE_PATH_KEY;
+import static com.intel.chimera.conf.ConfigurationKeys.CHIMERA_CRYPTO_SECURE_RANDOM_CLASSES_KEY;
 
 import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_SECURITY_CRYPTO_BUFFER_SIZE_DEFAULT;
 import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_SECURITY_CRYPTO_BUFFER_SIZE_KEY;
@@ -101,18 +100,17 @@ public class CryptoStreamUtils {
 
   public static Cipher getCipherInstance(Configuration conf)
       throws IOException {
-    try {
-      return CipherFactory.getInstance(CryptoStreamUtils.toChimeraConf(conf));
-    } catch (GeneralSecurityException e) {
-      throw new IOException(e);
-    }
+    String suiteName = conf.get(HADOOP_SECURITY_CRYPTO_CIPHER_SUITE_KEY,
+        HADOOP_SECURITY_CRYPTO_CIPHER_SUITE_DEFAULT);
+    CipherSuite cipherSuite = CipherSuite.convert(suiteName);
+    return getCipherInstance(conf, cipherSuite);
   }
 
   public static Cipher getCipherInstance(Configuration conf,
       CipherSuite cipherSuite) throws IOException {
     try {
-      return CipherFactory.getInstance(toChimeraConf(conf),
-          toChimeraCipherTransformation(cipherSuite));
+      return CipherFactory.getInstance(
+          toChimeraCipherTransformation(cipherSuite), toChimeraConf(conf));
     } catch (GeneralSecurityException e) {
       throw new IOException(e);
     }
@@ -134,12 +132,9 @@ public class CryptoStreamUtils {
   private static Properties toChimeraConf(Configuration conf) {
     Properties props = new Properties();
 
-    // Set cipher transformation
+    // Set cipher classes
     String suiteName = conf.get(HADOOP_SECURITY_CRYPTO_CIPHER_SUITE_KEY,
         HADOOP_SECURITY_CRYPTO_CIPHER_SUITE_DEFAULT);
-    props.setProperty(CHIMERA_CRYPTO_CIPHER_TRANSFORMATION_KEY, suiteName);
-
-    // Set cipher classes
     String cipherString = conf.get(HADOOP_SECURITY_CRYPTO_CIPHER_CLASSES_KEY);
     if (cipherString == null) {
       CipherSuite cipherSuite = CipherSuite.convert(suiteName);
@@ -166,11 +161,11 @@ public class CryptoStreamUtils {
     // Set JCE provider
     String jceProvider = conf.get(HADOOP_SECURITY_CRYPTO_JCE_PROVIDER_KEY);
     if (jceProvider != null) {
-      props.setProperty(CHIMERA_CRYPTO_JCE_PROVIDER_KEY, jceProvider);
+      props.setProperty(CHIMERA_CRYPTO_CIPHER_JCE_PROVIDER_KEY, jceProvider);
     }
 
     // Set crypto buffer size
-    props.setProperty(CHIMERA_CRYPTO_BUFFER_SIZE_KEY,
+    props.setProperty(CHIMERA_CRYPTO_STREAM_BUFFER_SIZE_KEY,
         String.valueOf(getBufferSize(conf)));
 
     // Set random class
@@ -183,14 +178,14 @@ public class CryptoStreamUtils {
           OpensslSecureRandom.class.getCanonicalName(),
           com.intel.chimera.random.OpensslSecureRandom.class
             .getCanonicalName());
-      props.setProperty(CHIMERA_SECURE_RANDOM_IMPL_KEY, randomString);
+      props.setProperty(CHIMERA_CRYPTO_SECURE_RANDOM_CLASSES_KEY, randomString);
     }
 
     // Set random dev file path
     String randomDevPath = conf.get(
         HADOOP_SECURITY_SECURE_RANDOM_DEVICE_FILE_PATH_KEY,
         HADOOP_SECURITY_SECURE_RANDOM_DEVICE_FILE_PATH_DEFAULT);
-    props.setProperty(CHIMERA_RANDOM_DEVICE_FILE_PATH_KEY, randomDevPath);
+    props.setProperty(CHIMERA_CRYPTO_SECURE_RANDOM_DEVICE_FILE_PATH_KEY, randomDevPath);
 
     return props;
   }

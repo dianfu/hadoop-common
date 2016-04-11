@@ -171,7 +171,7 @@ public class CryptoFSInputStream extends PositionedCryptoInputStream implements
 
   @Override
   public long getPos() throws IOException {
-    return super.getPos();
+    return super.getStreamPosition();
   }
 
   @Override
