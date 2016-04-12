@@ -17,25 +17,27 @@
  */
 package org.apache.hadoop.security;
 
+import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_RPC_SECURITY_CRYPTO_CIPHER_SUITES;
+import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_RPC_SECURITY_CRYPTO_CIPHER_KEY_BITLENGTH_KEY;
+import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_RPC_SECURITY_CRYPTO_CIPHER_KEY_BITLENGTH_DEFAULT;
+
+import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.crypto.*;
-import org.apache.hadoop.io.IOUtils;
+import org.apache.hadoop.crypto.CipherOption;
+import org.apache.hadoop.crypto.CipherSuite;
+import org.apache.hadoop.crypto.CryptoCodec;
 
 import javax.security.sasl.Sasl;
 import javax.security.sasl.SaslClient;
 import javax.security.sasl.SaslServer;
-import java.io.*;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_RPC_SECURITY_CRYPTO_CIPHER_SUITES;
-import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_RPC_SECURITY_CRYPTO_CIPHER_KEY_BITLENGTH_KEY;
-import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_RPC_SECURITY_CRYPTO_CIPHER_KEY_BITLENGTH_DEFAULT;
 
 /**
  * Utility methods implementing SASL negotiation.
@@ -174,6 +176,12 @@ public final class SaslUtil {
     return null;
   }
 
+  /**
+   * Get the cipher options supported.
+   *
+   * @param conf the configuration
+   * @return List<CipherOption> of the cipher options supported
+   */
   public static List<CipherOption> getCipherOptions(Configuration conf)
       throws IOException {
     List<CipherOption> cipherOptions = null;
@@ -186,9 +194,13 @@ public final class SaslUtil {
         throw new IOException(String.format("Invalid cipher suite, %s=%s",
             HADOOP_RPC_SECURITY_CRYPTO_CIPHER_SUITES, cipherSuites));
       }
-      CipherOption option = new CipherOption(CipherSuite.AES_CTR_NOPADDING);
       cipherOptions = Lists.newArrayListWithCapacity(1);
-      cipherOptions.add(option);
+      for (String cipherSuite : Splitter.on(',').trimResults().
+          omitEmptyStrings().split(cipherSuites)) {
+        CipherOption option = new CipherOption(
+            CipherSuite.convert(cipherSuite));
+        cipherOptions.add(option);
+      }
     }
     return cipherOptions;
   }

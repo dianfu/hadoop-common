@@ -1845,6 +1845,27 @@
 </property>
 
 <property>
+  <name>hadoop.rpc.security.crypto.cipher.suites</name>
+  <value></value>
+  <description>
+    Comma-separated list of cipher suites. This value may be either undefined
+    or AES/CTR/NoPadding. If defined, then rpc client and rpc server use the
+    specified cipher suite for data encryption. If not defined, then the
+    algorithm negotiated by SASL will be used. By default, the property is not
+    defined.
+  </description>
+</property>
+
+<property>
+  <name>hadoop.rpc.security.crypto.cipher.key.bitlength</name>
+  <value>128</value>
+  <description>
+    The key bitlength negotiated by rpc client and rpc server for encryption.
+    This value may be set to either 128, 192 or 256.
+  </description>
+</property>
+
+<property>
   <name>fs.har.impl.disable.cache</name>
   <value>true</value>
   <description>Don't cache 'har' filesystem instances.</description>
