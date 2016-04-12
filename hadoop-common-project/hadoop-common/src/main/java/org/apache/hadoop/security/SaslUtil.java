@@ -33,9 +33,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_SECURITY_CRYPTO_CIPHER_SUITE_KEY;
-import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_SECURITY_CRYPTO_CIPHER_KEY_BITLENGTH_KEY;
-import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_SECURITY_CRYPTO_CIPHER_KEY_BITLENGTH_DEFAULT;
+import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_RPC_SECURITY_CRYPTO_CIPHER_SUITES;
+import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_RPC_SECURITY_CRYPTO_CIPHER_KEY_BITLENGTH_KEY;
+import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_RPC_SECURITY_CRYPTO_CIPHER_KEY_BITLENGTH_DEFAULT;
 
 /**
  * Utility methods implementing SASL negotiation.
@@ -88,21 +88,21 @@ public final class SaslUtil {
     // Negotiate cipher suites if configured.  Currently, the only supported
     // cipher suite is AES/CTR/NoPadding, but the protocol allows multiple
     // values for future expansion.
-    String cipherSuites = conf.get(HADOOP_SECURITY_CRYPTO_CIPHER_SUITE_KEY);
+    String cipherSuites = conf.get(HADOOP_RPC_SECURITY_CRYPTO_CIPHER_SUITES);
     if (cipherSuites == null || cipherSuites.isEmpty()) {
       return null;
     }
     if (!cipherSuites.equals(CipherSuite.AES_CTR_NOPADDING.getName())) {
       throw new IOException(String.format("Invalid cipher suite, %s=%s",
-          HADOOP_SECURITY_CRYPTO_CIPHER_SUITE_KEY, cipherSuites));
+          HADOOP_RPC_SECURITY_CRYPTO_CIPHER_SUITES, cipherSuites));
     }
     if (options != null) {
       for (CipherOption option : options) {
         CipherSuite suite = option.getCipherSuite();
         if (suite == CipherSuite.AES_CTR_NOPADDING) {
           int keyLen = conf.getInt(
-              HADOOP_SECURITY_CRYPTO_CIPHER_KEY_BITLENGTH_KEY,
-              HADOOP_SECURITY_CRYPTO_CIPHER_KEY_BITLENGTH_DEFAULT) / 8;
+              HADOOP_RPC_SECURITY_CRYPTO_CIPHER_KEY_BITLENGTH_KEY,
+              HADOOP_RPC_SECURITY_CRYPTO_CIPHER_KEY_BITLENGTH_DEFAULT) / 8;
           CryptoCodec codec = CryptoCodec.getInstance(conf, suite);
           byte[] inKey = new byte[keyLen];
           byte[] inIv = new byte[suite.getAlgorithmBlockSize()];
@@ -177,14 +177,14 @@ public final class SaslUtil {
   public static List<CipherOption> getCipherOptions(Configuration conf)
       throws IOException {
     List<CipherOption> cipherOptions = null;
-    String cipherSuites = conf.get(HADOOP_SECURITY_CRYPTO_CIPHER_SUITE_KEY);
+    String cipherSuites = conf.get(HADOOP_RPC_SECURITY_CRYPTO_CIPHER_SUITES);
     // Negotiate cipher suites if configured.  Currently, the only supported
     // cipher suite is AES/CTR/NoPadding, but the protocol allows multiple
     // values for future expansion.
     if (cipherSuites != null && !cipherSuites.isEmpty()) {
       if (!cipherSuites.equals(CipherSuite.AES_CTR_NOPADDING.getName())) {
         throw new IOException(String.format("Invalid cipher suite, %s=%s",
-            HADOOP_SECURITY_CRYPTO_CIPHER_SUITE_KEY, cipherSuites));
+            HADOOP_RPC_SECURITY_CRYPTO_CIPHER_SUITES, cipherSuites));
       }
       CipherOption option = new CipherOption(CipherSuite.AES_CTR_NOPADDING);
       cipherOptions = Lists.newArrayListWithCapacity(1);

@@ -18,7 +18,7 @@
 
 package org.apache.hadoop.security;
 
-import static org.apache.hadoop.fs.CommonConfigurationKeys.HADOOP_SECURITY_CRYPTO_CIPHER_SUITE_KEY;
+import static org.apache.hadoop.fs.CommonConfigurationKeys.HADOOP_RPC_SECURITY_CRYPTO_CIPHER_SUITES;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -524,7 +524,7 @@ public class SaslRpcClient {
         if (cipherOption == null) {
           // No cipher suite is negotiated
           String cipherSuites = conf.get(
-              HADOOP_SECURITY_CRYPTO_CIPHER_SUITE_KEY);
+              HADOOP_RPC_SECURITY_CRYPTO_CIPHER_SUITES);
           if (cipherSuites != null && !cipherSuites.isEmpty()) {
             // the client accepts some cipher suites, but the server does not.
             LOG.debug("Client accepts cipher suites " + cipherSuites + ", "

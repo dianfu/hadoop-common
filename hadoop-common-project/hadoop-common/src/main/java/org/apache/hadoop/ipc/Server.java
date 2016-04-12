@@ -18,7 +18,7 @@
 
 package org.apache.hadoop.ipc;
 
-import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_SECURITY_CRYPTO_CIPHER_SUITE_KEY;
+import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_RPC_SECURITY_CRYPTO_CIPHER_SUITES;
 import static org.apache.hadoop.ipc.RpcConstants.AUTHORIZATION_FAILED_CALL_ID;
 import static org.apache.hadoop.ipc.RpcConstants.CONNECTION_CONTEXT_CALL_ID;
 import static org.apache.hadoop.ipc.RpcConstants.CURRENT_VERSION;
@@ -1707,7 +1707,7 @@ public abstract class Server {
           if (cipherOption == null) {
             // No cipher suite is negotiated
             String cipherSuites =
-                conf.get(HADOOP_SECURITY_CRYPTO_CIPHER_SUITE_KEY);
+                conf.get(HADOOP_RPC_SECURITY_CRYPTO_CIPHER_SUITES);
             if (cipherSuites != null && !cipherSuites.isEmpty()) {
               // the server accepts some cipher suites, but the client does not.
               LOG.debug("Server accepts cipher suites " + cipherSuites

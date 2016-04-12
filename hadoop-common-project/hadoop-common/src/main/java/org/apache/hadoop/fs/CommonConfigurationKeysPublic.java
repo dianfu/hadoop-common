@@ -324,6 +324,12 @@ public class CommonConfigurationKeysPublic {
   /** See <a href="{@docRoot}/../core-default.html">core-default.xml</a> */
   public static final String  HADOOP_RPC_PROTECTION =
     "hadoop.rpc.protection";
+  public static final String HADOOP_RPC_SECURITY_CRYPTO_CIPHER_SUITES =
+    "hadoop.rpc.security.crypto.cipher.suites";
+  public static final String HADOOP_RPC_SECURITY_CRYPTO_CIPHER_KEY_BITLENGTH_KEY =
+    "hadoop.security.crypto.cipher.key.bitlength";
+  public static final int HADOOP_RPC_SECURITY_CRYPTO_CIPHER_KEY_BITLENGTH_DEFAULT =
+    128;
   /** Class to override Sasl Properties for a connection */
   public static final String  HADOOP_SECURITY_SASL_PROPS_RESOLVER_CLASS =
     "hadoop.security.saslproperties.resolver.class";
@@ -353,10 +359,6 @@ public class CommonConfigurationKeysPublic {
   /** Class to override Impersonation provider */
   public static final String  HADOOP_SECURITY_IMPERSONATION_PROVIDER_CLASS =
     "hadoop.security.impersonation.provider.class";
-  public static final String HADOOP_SECURITY_CRYPTO_CIPHER_KEY_BITLENGTH_KEY =
-      "hadoop.security.crypto.cipher.key.bitlength";
-  public static final int HADOOP_SECURITY_CRYPTO_CIPHER_KEY_BITLENGTH_DEFAULT =
-      128;
 
   //  <!-- KMSClientProvider configurations -->
   /** See <a href="{@docRoot}/../core-default.html">core-default.xml</a> */
