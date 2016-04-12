@@ -216,7 +216,7 @@ public class SaslRpcClient {
     final String saslProtocol = authType.getProtocol();
     final String saslServerName = authType.getServerId();
     saslProperties =
-      saslPropsResolver.getClientProperties(serverAddr.getAddress());
+      saslPropsResolver.getClientProperties(serverAddr.getAddress());  
     CallbackHandler saslCallback = null;
     
     final AuthMethod method = AuthMethod.valueOf(authType.getMethod());

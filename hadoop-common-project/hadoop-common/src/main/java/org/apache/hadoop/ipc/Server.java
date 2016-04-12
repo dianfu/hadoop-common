@@ -2211,12 +2211,12 @@ public abstract class Server {
       Class<? extends Writable> rpcRequestClass = 
           getRpcRequestWrapper(header.getRpcKind());
       if (rpcRequestClass == null) {
-        LOG.warn("Unknown rpc kind "  + header.getRpcKind() +
+        LOG.warn("Unknown rpc kind "  + header.getRpcKind() + 
             " from client " + getHostAddress());
         final String err = "Unknown rpc kind in rpc header"  + 
             header.getRpcKind();
         throw new WrappedRpcServerException(
-            RpcErrorCodeProto.FATAL_INVALID_RPC_HEADER, err);  
+            RpcErrorCodeProto.FATAL_INVALID_RPC_HEADER, err);   
       }
       Writable rpcRequest;
       try { //Read the rpc request
@@ -2224,13 +2224,13 @@ public abstract class Server {
         rpcRequest.readFields(dis);
       } catch (Throwable t) { // includes runtime exception from newInstance
         LOG.warn("Unable to read call parameters for client " +
-            getHostAddress() + "on connection protocol " +
+                 getHostAddress() + "on connection protocol " +
             this.protocolName + " for rpcKind " + header.getRpcKind(),  t);
         String err = "IPC server unable to read call parameters: "+ t.getMessage();
         throw new WrappedRpcServerException(
             RpcErrorCodeProto.FATAL_DESERIALIZING_REQUEST, err);
       }
-       
+        
       TraceScope traceScope = null;
       if (header.hasTraceInfo()) {
         if (tracer != null) {
