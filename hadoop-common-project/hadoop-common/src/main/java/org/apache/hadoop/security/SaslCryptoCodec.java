@@ -35,6 +35,9 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 
 public class SaslCryptoCodec {
+  private static final int MAC_LENGTH = 10;
+  private static final int SEQ_NUM_LENGTH = 4;
+
   private CryptoInputStream cIn;
   private CryptoOutputStream cOut;
 
@@ -65,7 +68,7 @@ public class SaslCryptoCodec {
     // encrypt
     try {
       cOut.write(outgoing, offset, len);
-      cOut.write(mac, 0, 10);
+      cOut.write(mac, 0, MAC_LENGTH);
       cOut.flush();
     } catch (IOException ioe) {
       throw new SaslException("Encrypt failed", ioe);
@@ -75,9 +78,10 @@ public class SaslCryptoCodec {
     ((ByteArrayOutputStream) cOut.getWrappedStream()).reset();
 
     // append seqNum used for mac
-    byte[] wrapped = new byte[encrypted.length + 4];
+    byte[] wrapped = new byte[encrypted.length + SEQ_NUM_LENGTH];
     System.arraycopy(encrypted, 0, wrapped, 0, encrypted.length);
-    System.arraycopy(integrity.getSeqNum(), 0, wrapped, encrypted.length, 4);
+    System.arraycopy(integrity.getSeqNum(), 0, wrapped,
+        encrypted.length, SEQ_NUM_LENGTH);
 
     return wrapped;
   }
@@ -85,13 +89,15 @@ public class SaslCryptoCodec {
   public byte[] unwrap(byte[] incoming, int offset, int len)
       throws SaslException {
     // get seqNum
-    byte[] peerSeqNum = new byte[4];
-    System.arraycopy(incoming, offset + len - 4, peerSeqNum, 0, 4);
+    byte[] peerSeqNum = new byte[SEQ_NUM_LENGTH];
+    System.arraycopy(incoming, offset + len - SEQ_NUM_LENGTH, peerSeqNum, 0,
+        SEQ_NUM_LENGTH);
 
     // get msg and mac
-    byte[] msg = new byte[len - 4 - 10];
-    byte[] mac = new byte[10];
-    cIn.setWrappedStream(new ByteArrayInputStream(incoming, offset, len - 4));
+    byte[] msg = new byte[len - SEQ_NUM_LENGTH - MAC_LENGTH];
+    byte[] mac = new byte[MAC_LENGTH];
+    cIn.setWrappedStream(new ByteArrayInputStream(incoming, offset,
+        len - SEQ_NUM_LENGTH));
     try {
       cIn.readFully(msg, 0, msg.length);
       cIn.readFully(mac, 0, mac.length);
@@ -120,7 +126,7 @@ public class SaslCryptoCodec {
 
     private int mySeqNum = 0;
     private int peerSeqNum = 0;
-    private byte[] seqNum = new byte[4];
+    private byte[] seqNum = new byte[SEQ_NUM_LENGTH];
 
     private byte[] myKey;
     private byte[] peerKey;
@@ -150,18 +156,18 @@ public class SaslCryptoCodec {
     }
 
     void incMySeqNum() {
-      mySeqNum ++;
+      mySeqNum++;
     }
 
     void incPeerSeqNum() {
-      peerSeqNum ++;
+      peerSeqNum++;
     }
 
     private byte[] calculateHMAC(byte[] key, byte[] seqNum, byte[] msg,
                                  int start, int len) throws SaslException {
-      byte[] seqAndMsg = new byte[4 + len];
-      System.arraycopy(seqNum, 0, seqAndMsg, 0, 4);
-      System.arraycopy(msg, start, seqAndMsg, 4, len);
+      byte[] seqAndMsg = new byte[SEQ_NUM_LENGTH + len];
+      System.arraycopy(seqNum, 0, seqAndMsg, 0, SEQ_NUM_LENGTH);
+      System.arraycopy(msg, start, seqAndMsg, SEQ_NUM_LENGTH, len);
 
       try {
         SecretKey keyKi = new SecretKeySpec(key, "HmacMD5");
@@ -171,19 +177,21 @@ public class SaslCryptoCodec {
         byte[] hMAC_MD5 = m.doFinal();
 
         /* First 10 bytes of HMAC_MD5 digest */
-        byte macBuffer[] = new byte[10];
-        System.arraycopy(hMAC_MD5, 0, macBuffer, 0, 10);
+        byte macBuffer[] = new byte[MAC_LENGTH];
+        System.arraycopy(hMAC_MD5, 0, macBuffer, 0, MAC_LENGTH);
 
         return macBuffer;
       } catch (InvalidKeyException e) {
-        throw new SaslException("Invalid bytes used for key of HMAC-MD5 hash.", e);
+        throw new SaslException("Invalid bytes used for key of HMAC-MD5 hash.",
+            e);
       } catch (NoSuchAlgorithmException e) {
-        throw new SaslException("Error creating instance of MD5 MAC algorithm", e);
+        throw new SaslException("Error creating instance of MD5 MAC algorithm",
+            e);
       }
     }
 
     private void intToByte(int num) {
-      for(int i = 3; i >= 0; i --) {
+      for(int i = 3; i >= 0; i--) {
         seqNum[i] = (byte)(num & 0xff);
         num >>>= 8;
       }
@@ -191,7 +199,7 @@ public class SaslCryptoCodec {
 
     private int byteToInt(byte[] seqNum) {
       int answer = 0;
-      for (int i = 0; i < 4; i ++) {
+      for (int i = 0; i < 4; i++) {
         answer <<= 8;
         answer |= ((int)seqNum[i] & 0xff);
       }
