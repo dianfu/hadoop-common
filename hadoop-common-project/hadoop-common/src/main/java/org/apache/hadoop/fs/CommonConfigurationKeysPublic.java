@@ -325,11 +325,11 @@ public class CommonConfigurationKeysPublic {
   public static final String  HADOOP_RPC_PROTECTION =
     "hadoop.rpc.protection";
   public static final String HADOOP_RPC_SECURITY_CRYPTO_CIPHER_SUITES =
-    "hadoop.rpc.security.crypto.cipher.suites";
+      "hadoop.rpc.security.crypto.cipher.suites";
   public static final String HADOOP_RPC_SECURITY_CRYPTO_CIPHER_KEY_BITLENGTH_KEY =
-    "hadoop.rpc.security.crypto.cipher.key.bitlength";
+      "hadoop.rpc.security.crypto.cipher.key.bitlength";
   public static final int HADOOP_RPC_SECURITY_CRYPTO_CIPHER_KEY_BITLENGTH_DEFAULT =
-    128;
+      128;
   /** Class to override Sasl Properties for a connection */
   public static final String  HADOOP_SECURITY_SASL_PROPS_RESOLVER_CLASS =
     "hadoop.security.saslproperties.resolver.class";

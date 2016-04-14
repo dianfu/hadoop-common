@@ -26,7 +26,18 @@ import org.apache.hadoop.security.proto.SecurityProtos.CipherOptionProto;
 
 import java.util.List;
 
+/**
+ * Utilities for converting protobuf classes to and from implementation classes
+ * and other helper utilities to help in dealing with protobuf.
+ *
+ * Note that when converting from an internal type to protobuf type, the
+ * converter never return null for protobuf type. The check for internal type
+ * being null must be done before calling the convert() method.
+ */
 public class CommonPBHelper {
+  private CommonPBHelper() {
+    /** Hidden constructor */
+  }
 
   public static ByteString getByteString(byte[] bytes) {
     // return singleton to reduce object allocation
@@ -35,49 +46,45 @@ public class CommonPBHelper {
 
   public static CipherSuiteProto convert(CipherSuite suite) {
     switch (suite) {
-      case UNKNOWN:
-        return CipherSuiteProto.UNKNOWN;
-      case AES_CTR_NOPADDING:
-        return CipherSuiteProto.AES_CTR_NOPADDING;
-      default:
-        return null;
+    case UNKNOWN:
+      return CipherSuiteProto.UNKNOWN;
+    case AES_CTR_NOPADDING:
+      return CipherSuiteProto.AES_CTR_NOPADDING;
+    default:
+      return null;
     }
   }
 
   public static CipherSuite convert(CipherSuiteProto proto) {
     switch (proto) {
-      case AES_CTR_NOPADDING:
-        return CipherSuite.AES_CTR_NOPADDING;
-      default:
-        // Set to UNKNOWN and stash the unknown enum value
-        CipherSuite suite = CipherSuite.UNKNOWN;
-        suite.setUnknownValue(proto.getNumber());
-        return suite;
+    case AES_CTR_NOPADDING:
+      return CipherSuite.AES_CTR_NOPADDING;
+    default:
+      // Set to UNKNOWN and stash the unknown enum value
+      CipherSuite suite = CipherSuite.UNKNOWN;
+      suite.setUnknownValue(proto.getNumber());
+      return suite;
     }
   }
 
   public static CipherOptionProto convert(CipherOption option) {
-    if (option != null) {
-      CipherOptionProto.Builder builder =
-          CipherOptionProto.newBuilder();
-      if (option.getCipherSuite() != null) {
-        builder.setSuite(convert(option.getCipherSuite()));
-      }
-      if (option.getInKey() != null) {
-        builder.setInKey(getByteString(option.getInKey()));
-      }
-      if (option.getInIv() != null) {
-        builder.setInIv(getByteString(option.getInIv()));
-      }
-      if (option.getOutKey() != null) {
-        builder.setOutKey(getByteString(option.getOutKey()));
-      }
-      if (option.getOutIv() != null) {
-        builder.setOutIv(getByteString(option.getOutIv()));
-      }
-      return builder.build();
+    CipherOptionProto.Builder builder = CipherOptionProto.newBuilder();
+    if (option.getCipherSuite() != null) {
+      builder.setSuite(convert(option.getCipherSuite()));
     }
-    return null;
+    if (option.getInKey() != null) {
+      builder.setInKey(getByteString(option.getInKey()));
+    }
+    if (option.getInIv() != null) {
+      builder.setInIv(getByteString(option.getInIv()));
+    }
+    if (option.getOutKey() != null) {
+      builder.setOutKey(getByteString(option.getOutKey()));
+    }
+    if (option.getOutIv() != null) {
+      builder.setOutIv(getByteString(option.getOutIv()));
+    }
+    return builder.build();
   }
 
   public static CipherOption convert(CipherOptionProto proto) {
@@ -109,15 +116,12 @@ public class CommonPBHelper {
 
   public static List<CipherOptionProto> convertCipherOptions(
       List<CipherOption> options) {
-    if (options != null) {
-      List<CipherOptionProto> protos =
-          Lists.newArrayListWithCapacity(options.size());
-      for (CipherOption option : options) {
-        protos.add(convert(option));
-      }
-      return protos;
+    List<CipherOptionProto> protos =
+        Lists.newArrayListWithCapacity(options.size());
+    for (CipherOption option : options) {
+      protos.add(convert(option));
     }
-    return null;
+    return protos;
   }
 
   public static List<CipherOption> convertCipherOptionProtos(

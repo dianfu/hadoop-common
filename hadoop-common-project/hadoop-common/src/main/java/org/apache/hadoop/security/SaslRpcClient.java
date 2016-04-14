@@ -438,7 +438,8 @@ public class SaslRpcClient {
           if (SaslUtil.requestedQopContainsPrivacy(saslProperties)) {
             cipherOptions = SaslUtil.getCipherOptions(conf);
           }
-          response = createSaslReply(SaslState.RESPONSE, responseToken, cipherOptions);
+          response = createSaslReply(SaslState.RESPONSE, responseToken,
+              cipherOptions);
           break;
         }
         case SUCCESS: {

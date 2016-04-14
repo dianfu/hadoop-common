@@ -472,7 +472,8 @@ public final class FSImageFormatPBINode {
             XATTR_NAMESPACE_EXT_OFFSET);
         xAttrCompactBuilder.setName(v);
         if (a.getValue() != null) {
-          xAttrCompactBuilder.setValue(CommonPBHelper.getByteString(a.getValue()));
+          xAttrCompactBuilder.setValue(CommonPBHelper.getByteString(
+              a.getValue()));
         }
         b.addXAttrs(xAttrCompactBuilder.build());
       }

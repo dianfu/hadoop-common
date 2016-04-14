@@ -45,6 +45,10 @@ import java.util.Set;
 @InterfaceAudience.Private
 public final class SaslUtil {
 
+  private SaslUtil() {
+    /** Hidden constructor */    
+  }
+
   /**
    * Check whether requested SASL Qop contains privacy.
    *
@@ -59,7 +63,7 @@ public final class SaslUtil {
   }
 
   /**
-   * After successful SASL negotiation, returns whether it's QOP privacy
+   * After successful SASL negotiation, returns whether it's QOP privacy.
    *
    * @return boolean whether it's QOP privacy
    */
@@ -69,7 +73,7 @@ public final class SaslUtil {
   }
 
   /**
-   * After successful SASL negotiation, returns whether it's QOP privacy
+   * After successful SASL negotiation, returns whether it's QOP privacy.
    *
    * @return boolean whether it's QOP privacy
    */

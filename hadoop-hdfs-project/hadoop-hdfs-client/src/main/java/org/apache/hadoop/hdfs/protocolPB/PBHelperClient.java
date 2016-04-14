@@ -34,7 +34,6 @@ import com.google.common.primitives.Shorts;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.CodedInputStream;
 
-import org.apache.hadoop.crypto.CipherOption;
 import org.apache.hadoop.crypto.CipherSuite;
 import org.apache.hadoop.crypto.CryptoProtocolVersion;
 import org.apache.hadoop.fs.CacheFlag;
@@ -935,7 +934,8 @@ public class PBHelperClient {
     return HdfsProtos.FileEncryptionInfoProto.newBuilder()
         .setSuite(CommonPBHelper.convert(info.getCipherSuite()))
         .setCryptoProtocolVersion(convert(info.getCryptoProtocolVersion()))
-        .setKey(CommonPBHelper.getByteString(info.getEncryptedDataEncryptionKey()))
+        .setKey(CommonPBHelper.getByteString(
+            info.getEncryptedDataEncryptionKey()))
         .setIv(CommonPBHelper.getByteString(info.getIV()))
         .setEzKeyVersionName(info.getEzKeyVersionName())
         .setKeyName(info.getKeyName())
@@ -2022,8 +2022,9 @@ public class PBHelperClient {
     if (entry == null) {
       return null;
     }
-    ByteString sourcePath = CommonPBHelper.getByteString(entry.getSourcePath() == null ?
-        DFSUtilClient.EMPTY_BYTES : entry.getSourcePath());
+    ByteString sourcePath = CommonPBHelper.getByteString(
+        entry.getSourcePath() == null ? DFSUtilClient.EMPTY_BYTES :
+            entry.getSourcePath());
     String modification = entry.getType().getLabel();
     SnapshotDiffReportEntryProto.Builder builder = SnapshotDiffReportEntryProto
         .newBuilder().setFullpath(sourcePath)
@@ -2321,7 +2322,8 @@ public class PBHelperClient {
       return null;
     }
     return HdfsProtos.PerFileEncryptionInfoProto.newBuilder()
-        .setKey(CommonPBHelper.getByteString(info.getEncryptedDataEncryptionKey()))
+        .setKey(CommonPBHelper.getByteString(
+            info.getEncryptedDataEncryptionKey()))
         .setIv(CommonPBHelper.getByteString(info.getIV()))
         .setEzKeyVersionName(info.getEzKeyVersionName())
         .build();

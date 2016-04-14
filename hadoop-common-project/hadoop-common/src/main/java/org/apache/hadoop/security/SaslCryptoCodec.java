@@ -34,6 +34,11 @@ import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 
+/**
+ * Provide the functionality to allow for quality-of-protection (QOP) with
+ * integrity checking and privacy. It relies on CryptoInputStream and
+ * CryptoOutputStream to do decryption and encryption.
+ */
 public class SaslCryptoCodec {
   private static final int MAC_LENGTH = 10;
   private static final int SEQ_NUM_LENGTH = 4;
@@ -106,7 +111,7 @@ public class SaslCryptoCodec {
     }
 
     // check mac integrity and msg sequence
-    if (!integrity.compareHMAC(mac, peerSeqNum, msg, 0, msg.length)) {
+    if (!integrity.comparePeerHMAC(mac, peerSeqNum, msg, 0, msg.length)) {
       throw new SaslException("Unmatched MAC");
     }
     if (!integrity.comparePeerSeqNum(peerSeqNum)) {
@@ -126,7 +131,7 @@ public class SaslCryptoCodec {
 
     private int mySeqNum = 0;
     private int peerSeqNum = 0;
-    private byte[] seqNum = new byte[SEQ_NUM_LENGTH];
+    private byte[] mySeqNumArray = new byte[SEQ_NUM_LENGTH];
 
     private byte[] myKey;
     private byte[] peerKey;
@@ -138,21 +143,21 @@ public class SaslCryptoCodec {
 
     byte[] getHMAC(byte[] msg, int start, int len) throws SaslException {
       intToByte(mySeqNum);
-      return calculateHMAC(myKey, seqNum, msg, start, len);
+      return calculateHMAC(myKey, mySeqNumArray, msg, start, len);
     }
 
-    boolean compareHMAC(byte[] expectedHMAC, byte[] peerSeqNum, byte[] msg,
-                        int start, int len) throws SaslException {
-      byte[] mac = calculateHMAC(peerKey, peerSeqNum, msg, start, len);
+    boolean comparePeerHMAC(byte[] expectedHMAC, byte[] seqNum, byte[] msg,
+                            int start, int len) throws SaslException {
+      byte[] mac = calculateHMAC(peerKey, seqNum, msg, start, len);
       return Arrays.equals(mac, expectedHMAC);
     }
 
-    boolean comparePeerSeqNum(byte[] peerSeqNum) {
-      return this.peerSeqNum == byteToInt(peerSeqNum);
+    boolean comparePeerSeqNum(byte[] seqNum) {
+      return this.peerSeqNum == byteToInt(seqNum);
     }
 
     byte[] getSeqNum() {
-      return seqNum;
+      return mySeqNumArray;
     }
 
     void incMySeqNum() {
@@ -174,11 +179,11 @@ public class SaslCryptoCodec {
         Mac m = Mac.getInstance("HmacMD5");
         m.init(keyKi);
         m.update(seqAndMsg);
-        byte[] hMAC_MD5 = m.doFinal();
+        byte[] hMacMd5 = m.doFinal();
 
         /* First 10 bytes of HMAC_MD5 digest */
-        byte macBuffer[] = new byte[MAC_LENGTH];
-        System.arraycopy(hMAC_MD5, 0, macBuffer, 0, MAC_LENGTH);
+        byte[] macBuffer = new byte[MAC_LENGTH];
+        System.arraycopy(hMacMd5, 0, macBuffer, 0, MAC_LENGTH);
 
         return macBuffer;
       } catch (InvalidKeyException e) {
@@ -192,7 +197,7 @@ public class SaslCryptoCodec {
 
     private void intToByte(int num) {
       for(int i = 3; i >= 0; i--) {
-        seqNum[i] = (byte)(num & 0xff);
+        mySeqNumArray[i] = (byte)(num & 0xff);
         num >>>= 8;
       }
     }

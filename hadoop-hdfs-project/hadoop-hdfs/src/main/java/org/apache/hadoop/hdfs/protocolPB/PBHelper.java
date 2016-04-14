@@ -365,7 +365,8 @@ public class PBHelper {
       RecoveringStripedBlock sb = (RecoveringStripedBlock) b;
       builder.setEcPolicy(PBHelperClient.convertErasureCodingPolicy(
           sb.getErasureCodingPolicy()));
-      builder.setBlockIndices(CommonPBHelper.getByteString(sb.getBlockIndices()));
+      builder.setBlockIndices(CommonPBHelper.getByteString(
+          sb.getBlockIndices()));
     }
     return builder.build();
   }
