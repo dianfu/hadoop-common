@@ -109,19 +109,6 @@ public final class DataTransferSaslUtil {
   }
 
   /**
-   * Check whether requested SASL Qop contains privacy.
-   *
-   * @param saslProps properties of SASL negotiation
-   * @return boolean true if privacy exists
-   */
-  public static boolean requestedQopContainsPrivacy(
-      Map<String, String> saslProps) {
-    Set<String> requestedQop = ImmutableSet.copyOf(Arrays.asList(
-        saslProps.get(Sasl.QOP).split(",")));
-    return requestedQop.contains("auth-conf");
-  }
-
-  /**
    * Creates SASL properties required for an encrypted SASL negotiation.
    *
    * @param encryptionAlgorithm to use for SASL negotation

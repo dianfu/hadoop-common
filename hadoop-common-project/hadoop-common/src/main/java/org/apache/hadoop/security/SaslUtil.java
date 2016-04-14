@@ -59,7 +59,8 @@ public final class SaslUtil {
       Map<String, String> saslProps) {
     Set<String> requestedQop = ImmutableSet.copyOf(Arrays.asList(
         saslProps.get(Sasl.QOP).split(",")));
-    return requestedQop.contains("auth-conf");
+    return requestedQop.contains(
+        SaslRpcServer.QualityOfProtection.PRIVACY.getSaslQop());
   }
 
   /**
@@ -69,7 +70,8 @@ public final class SaslUtil {
    */
   public static boolean isNegotiatedQopPrivacy(SaslServer saslServer) {
     String qop = (String) saslServer.getNegotiatedProperty(Sasl.QOP);
-    return qop != null && "auth-conf".equalsIgnoreCase(qop);
+    return qop != null && SaslRpcServer.QualityOfProtection.PRIVACY
+        .getSaslQop().equalsIgnoreCase(qop);
   }
 
   /**
@@ -79,7 +81,8 @@ public final class SaslUtil {
    */
   public static boolean isNegotiatedQopPrivacy(SaslClient saslClient) {
     String qop = (String) saslClient.getNegotiatedProperty(Sasl.QOP);
-    return qop != null && "auth-conf".equalsIgnoreCase(qop);
+    return qop != null && SaslRpcServer.QualityOfProtection.PRIVACY
+        .getSaslQop().equalsIgnoreCase(qop);
   }
 
   /**
@@ -127,7 +130,7 @@ public final class SaslUtil {
   }
 
   /**
-   * Encrypt the key and iv of the negotiated cipher option.
+   * Encrypt the key of the negotiated cipher option.
    *
    * @param option negotiated cipher option
    * @param saslServer SASL server
@@ -154,7 +157,7 @@ public final class SaslUtil {
   }
 
   /**
-   * Decrypt the key and iv of the negotiated cipher option.
+   * Decrypt the key of the negotiated cipher option.
    *
    * @param option negotiated cipher option
    * @param saslClient SASL client
