@@ -31,6 +31,7 @@ option java_outer_classname = "EncryptionZonesProtos";
 option java_generate_equals_and_hash = true;
 package hadoop.hdfs;
 
+import "Security.proto";
 import "hdfs.proto";
 
 message CreateEncryptionZoneRequestProto {
@@ -48,7 +49,7 @@ message ListEncryptionZonesRequestProto {
 message EncryptionZoneProto {
   required int64 id = 1;
   required string path = 2;
-  required CipherSuiteProto suite = 3;
+  required hadoop.common.CipherSuiteProto suite = 3;
   required CryptoProtocolVersionProto cryptoProtocolVersion = 4;
   required string keyName = 5;
 }

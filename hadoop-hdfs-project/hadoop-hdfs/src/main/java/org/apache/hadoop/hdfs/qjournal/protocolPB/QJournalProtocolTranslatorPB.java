@@ -25,7 +25,6 @@ import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.hdfs.protocolPB.JournalProtocolPB;
 import org.apache.hadoop.hdfs.protocolPB.PBHelper;
-import org.apache.hadoop.hdfs.protocolPB.PBHelperClient;
 import org.apache.hadoop.hdfs.qjournal.protocol.QJournalProtocol;
 import org.apache.hadoop.hdfs.qjournal.protocol.QJournalProtocolProtos;
 import org.apache.hadoop.hdfs.qjournal.protocol.QJournalProtocolProtos.AcceptRecoveryRequestProto;
@@ -68,6 +67,7 @@ import org.apache.hadoop.ipc.RpcClientUtil;
 
 import com.google.protobuf.RpcController;
 import com.google.protobuf.ServiceException;
+import org.apache.hadoop.protocolPB.CommonPBHelper;
 
 /**
  * This class is the client side translator to translate the requests made on
@@ -162,7 +162,7 @@ public class QJournalProtocolTranslatorPB implements ProtocolMetaInterface,
         .setSegmentTxnId(segmentTxId)
         .setFirstTxnId(firstTxnId)
         .setNumTxns(numTxns)
-        .setRecords(PBHelperClient.getByteString(records))
+        .setRecords(CommonPBHelper.getByteString(records))
         .build();
     try {
       rpcProxy.journal(NULL_CONTROLLER, req);

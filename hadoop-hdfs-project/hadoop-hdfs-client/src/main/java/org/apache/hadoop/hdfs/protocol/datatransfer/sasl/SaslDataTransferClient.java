@@ -52,6 +52,7 @@ import org.apache.hadoop.hdfs.protocol.datatransfer.TrustedChannelResolver;
 import org.apache.hadoop.hdfs.security.token.block.BlockTokenIdentifier;
 import org.apache.hadoop.hdfs.security.token.block.DataEncryptionKey;
 import org.apache.hadoop.security.SaslPropertiesResolver;
+import org.apache.hadoop.security.SaslUtil;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
@@ -453,7 +454,7 @@ public class SaslDataTransferClient {
       List<CipherOption> cipherOptions = null;
       String cipherSuites = conf.get(
           DFS_ENCRYPT_DATA_TRANSFER_CIPHER_SUITES_KEY);
-      if (requestedQopContainsPrivacy(saslProps)) {
+      if (SaslUtil.requestedQopContainsPrivacy(saslProps)) {
         // Negotiate cipher suites if configured.  Currently, the only supported
         // cipher suite is AES/CTR/NoPadding, but the protocol allows multiple
         // values for future expansion.

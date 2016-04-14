@@ -69,7 +69,7 @@ public class CryptoStreamUtils {
    * current position, otherwise return 0;
    */
   public static long getInputStreamOffset(InputStream in) throws IOException {
-    if (in instanceof Seekable) {
+    if (in != null && in instanceof Seekable) {
       return ((Seekable) in).getPos();
     }
     return 0;

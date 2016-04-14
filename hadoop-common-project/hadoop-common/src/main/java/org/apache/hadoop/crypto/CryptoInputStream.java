@@ -96,8 +96,8 @@ public class CryptoInputStream extends FilterInputStream implements
   private final byte[] key;
   private final byte[] initIV;
   private byte[] iv;
-  private final boolean isByteBufferReadable;
-  private final boolean isReadableByteChannel;
+  private boolean isByteBufferReadable;
+  private boolean isReadableByteChannel;
   
   /** DirectBuffer pool */
   private final Queue<ByteBuffer> bufferPool = 
@@ -122,8 +122,10 @@ public class CryptoInputStream extends FilterInputStream implements
     this.initIV = iv.clone();
     this.iv = iv.clone();
     this.streamOffset = streamOffset;
-    isByteBufferReadable = in instanceof ByteBufferReadable;
-    isReadableByteChannel = in instanceof ReadableByteChannel;
+    if (in != null) {
+      isByteBufferReadable = in instanceof ByteBufferReadable;
+      isReadableByteChannel = in instanceof ReadableByteChannel;
+    }
     inBuffer = ByteBuffer.allocateDirect(this.bufferSize);
     outBuffer = ByteBuffer.allocateDirect(this.bufferSize);
     decryptor = getDecryptor();
@@ -138,7 +140,16 @@ public class CryptoInputStream extends FilterInputStream implements
   public InputStream getWrappedStream() {
     return in;
   }
-  
+
+  public void setWrappedStream(InputStream in) {
+    this.in = in;
+    if (in != null) {
+      isByteBufferReadable = in instanceof ByteBufferReadable;
+      isReadableByteChannel = in instanceof ReadableByteChannel;
+      usingByteBufferRead = null;
+    }
+  }
+
   /**
    * Decryption is buffer based.
    * If there is data in {@link #outBuffer}, then read it out of this buffer.
@@ -207,6 +218,17 @@ public class CryptoInputStream extends FilterInputStream implements
       n = Math.min(len, outBuffer.remaining());
       outBuffer.get(b, off, n);
       return n;
+    }
+  }
+
+  public void readFully(byte[] b, int off, int len) throws IOException {
+    int read = 0;
+    while (read < len) {
+      int n = read(b, off + read, len - read);
+      if (n < 0) {
+        throw new EOFException("End of file reached before reading fully.");
+      }
+      read += n;
     }
   }
   
