@@ -42,8 +42,9 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.crypto.CipherOption;
 import org.apache.hadoop.crypto.CipherSuite;
 import org.apache.hadoop.crypto.CryptoCodec;
-import org.apache.hadoop.crypto.CryptoInputStream;
-import org.apache.hadoop.crypto.CryptoOutputStream;
+import org.apache.hadoop.crypto.CryptoFSInputStream;
+import org.apache.hadoop.crypto.CryptoFSOutputStream;
+import org.apache.hadoop.crypto.CryptoStreamUtils;
 import org.apache.hadoop.hdfs.net.Peer;
 import org.apache.hadoop.hdfs.protocol.datatransfer.IOStreamPair;
 import org.apache.hadoop.hdfs.protocol.datatransfer.InvalidEncryptionKeyException;
@@ -61,6 +62,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.net.InetAddresses;
 import com.google.protobuf.ByteString;
+import com.intel.chimera.cipher.Cipher;
 
 /**
  * Utility methods implementing SASL negotiation for DataTransferProtocol.
@@ -321,8 +323,8 @@ public final class DataTransferSaslUtil {
   }
 
   /**
-   * Create IOStreamPair of {@link org.apache.hadoop.crypto.CryptoInputStream}
-   * and {@link org.apache.hadoop.crypto.CryptoOutputStream}
+   * Create IOStreamPair of {@link org.apache.hadoop.crypto.CryptoFSInputStream}
+   * and {@link org.apache.hadoop.crypto.CryptoFSOutputStream}
    *
    * @param conf the configuration
    * @param cipherOption negotiated cipher option
@@ -335,18 +337,18 @@ public final class DataTransferSaslUtil {
   public static IOStreamPair createStreamPair(Configuration conf,
       CipherOption cipherOption, OutputStream out, InputStream in,
       boolean isServer) throws IOException {
-    LOG.debug("Creating IOStreamPair of CryptoInputStream and "
-        + "CryptoOutputStream.");
-    CryptoCodec codec = CryptoCodec.getInstance(conf,
+    LOG.debug("Creating IOStreamPair of CryptoFSInputStream and "
+        + "CryptoFSOutputStream.");
+    Cipher cipher = CryptoStreamUtils.getCipherInstance(conf,
         cipherOption.getCipherSuite());
     byte[] inKey = cipherOption.getInKey();
     byte[] inIv = cipherOption.getInIv();
     byte[] outKey = cipherOption.getOutKey();
     byte[] outIv = cipherOption.getOutIv();
-    InputStream cIn = new CryptoInputStream(in, codec,
-        isServer ? inKey : outKey, isServer ? inIv : outIv);
-    OutputStream cOut = new CryptoOutputStream(out, codec,
-        isServer ? outKey : inKey, isServer ? outIv : inIv);
+    InputStream cIn = new CryptoFSInputStream(in, cipher,
+        isServer ? inKey : outKey, isServer ? inIv : outIv, conf);
+    OutputStream cOut = new CryptoFSOutputStream(out, cipher,
+        isServer ? outKey : inKey, isServer ? outIv : inIv, conf);
     return new IOStreamPair(cIn, cOut);
   }
 

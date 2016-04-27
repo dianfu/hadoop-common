@@ -28,7 +28,8 @@ import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.crypto.CryptoCodec;
-import org.apache.hadoop.crypto.CryptoInputStream;
+import org.apache.hadoop.crypto.CryptoFSInputStream;
+import org.apache.hadoop.crypto.CryptoStreamUtils;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.crypto.CryptoFSDataInputStream;
@@ -37,6 +38,8 @@ import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.mapreduce.security.TokenCache;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.LimitInputStream;
+
+import com.intel.chimera.cipher.Cipher;
 
 /**
  * This class provides utilities to make it easier to work with Cryptographic
@@ -89,7 +92,7 @@ public class CryptoUtils {
   }
 
   /**
-   * Wraps a given FSDataOutputStream with a CryptoOutputStream. The size of the
+   * Wraps a given FSDataOutputStream with a CryptoFSOutputStream. The size of the
    * data buffer required for the stream is specified by the
    * "mapreduce.job.encrypted-intermediate-data.buffer.kb" Job configuration
    * variable.
@@ -109,7 +112,8 @@ public class CryptoUtils {
         LOG.debug("IV written to Stream ["
             + Base64.encodeBase64URLSafeString(iv) + "]");
       }
-      return new CryptoFSDataOutputStream(out, CryptoCodec.getInstance(conf),
+      Cipher cipher = CryptoStreamUtils.getCipherInstance(conf);
+      return new CryptoFSDataOutputStream(out, cipher,
           getBufferSize(conf), getEncryptionKey(), iv);
     } else {
       return out;
@@ -117,7 +121,7 @@ public class CryptoUtils {
   }
 
   /**
-   * Wraps a given InputStream with a CryptoInputStream. The size of the data
+   * Wraps a given InputStream with a CryptoFSInputStream. The size of the data
    * buffer required for the stream is specified by the
    * "mapreduce.job.encrypted-intermediate-data.buffer.kb" Job configuration
    * variable.
@@ -144,16 +148,16 @@ public class CryptoUtils {
       byte[] offsetArray = new byte[8];
       IOUtils.readFully(in, offsetArray, 0, 8);
       long offset = ByteBuffer.wrap(offsetArray).getLong();
-      CryptoCodec cryptoCodec = CryptoCodec.getInstance(conf);
+      Cipher cipher = CryptoStreamUtils.getCipherInstance(conf);
       byte[] iv = 
-          new byte[cryptoCodec.getCipherSuite().getAlgorithmBlockSize()];
+          new byte[cipher.getTransformation().getAlgorithmBlockSize()];
       IOUtils.readFully(in, iv, 0, 
-          cryptoCodec.getCipherSuite().getAlgorithmBlockSize());
+          cipher.getTransformation().getAlgorithmBlockSize());
       if (LOG.isDebugEnabled()) {
         LOG.debug("IV read from ["
             + Base64.encodeBase64URLSafeString(iv) + "]");
       }
-      return new CryptoInputStream(in, cryptoCodec, bufferSize,
+      return new CryptoFSInputStream(in, cipher, bufferSize,
           getEncryptionKey(), iv, offset + cryptoPadding(conf));
     } else {
       return in;
@@ -161,7 +165,7 @@ public class CryptoUtils {
   }
 
   /**
-   * Wraps a given FSDataInputStream with a CryptoInputStream. The size of the
+   * Wraps a given FSDataInputStream with a CryptoFSInputStream. The size of the
    * data buffer required for the stream is specified by the
    * "mapreduce.job.encrypted-intermediate-data.buffer.kb" Job configuration
    * variable.
@@ -174,20 +178,20 @@ public class CryptoUtils {
   public static FSDataInputStream wrapIfNecessary(Configuration conf,
       FSDataInputStream in) throws IOException {
     if (isEncryptedSpillEnabled(conf)) {
-      CryptoCodec cryptoCodec = CryptoCodec.getInstance(conf);
+      Cipher cipher = CryptoStreamUtils.getCipherInstance(conf);
       int bufferSize = getBufferSize(conf);
       // Not going to be used... but still has to be read...
       // Since the O/P stream always writes it..
       IOUtils.readFully(in, new byte[8], 0, 8);
       byte[] iv = 
-          new byte[cryptoCodec.getCipherSuite().getAlgorithmBlockSize()];
+          new byte[cipher.getTransformation().getAlgorithmBlockSize()];
       IOUtils.readFully(in, iv, 0, 
-          cryptoCodec.getCipherSuite().getAlgorithmBlockSize());
+          cipher.getTransformation().getAlgorithmBlockSize());
       if (LOG.isDebugEnabled()) {
         LOG.debug("IV read from Stream ["
             + Base64.encodeBase64URLSafeString(iv) + "]");
       }
-      return new CryptoFSDataInputStream(in, cryptoCodec, bufferSize,
+      return new CryptoFSDataInputStream(in, cipher, bufferSize,
           getEncryptionKey(), iv);
     } else {
       return in;

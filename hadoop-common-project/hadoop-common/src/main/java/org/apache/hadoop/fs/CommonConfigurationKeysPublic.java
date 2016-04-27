@@ -327,6 +327,8 @@ public class CommonConfigurationKeysPublic {
   /** Class to override Sasl Properties for a connection */
   public static final String  HADOOP_SECURITY_SASL_PROPS_RESOLVER_CLASS =
     "hadoop.security.saslproperties.resolver.class";
+  public static final String HADOOP_SECURITY_CRYPTO_CIPHER_CLASSES_KEY =
+    "hadoop.security.crypto.cipher.classes";
   public static final String HADOOP_SECURITY_CRYPTO_CODEC_CLASSES_KEY_PREFIX = 
     "hadoop.security.crypto.codec.classes";
   public static final String
